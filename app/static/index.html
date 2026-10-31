@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BANDYX</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#160d13;color:white;font-family:Arial,sans-serif}
+header{background:#6e1735;padding:22px;text-align:center}
+header h1{margin:0;font-size:32px;letter-spacing:3px}
+header p{margin:6px 0 0;color:#f2cbd8}
+main{padding:16px;max-width:650px;margin:auto}
+.card{background:#291722;border:1px solid #693047;border-radius:15px;padding:16px;margin-bottom:15px}
+h2{font-size:19px;margin:0 0 12px}
+button{background:#a52c50;color:white;border:0;border-radius:10px;padding:12px 16px;font-weight:bold;cursor:pointer}
+button:disabled{opacity:.4}
+input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white;border:1px solid #754057;border-radius:8px}
+.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:15px}
+.tabs button{flex:1;min-width:90px}
+.player{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #543044;gap:10px}
+.player small{display:block;color:#c9a8b6;margin-top:4px}
+.muted{color:#c9a8b6;font-size:13px}
+#message{color:#ffb7cb;margin-top:10px}
+</style>
+</head>
+<body>
+<header>
+<h1>BANDYX</h1>
+<p>Фэнтези по хоккею с мячом</p>
+</header>
+<main>
+<div class="card">
+<h2>Моя команда</h2>
+<div id="budget">Бюджет: 225 000</div>
+<p class="muted">Собери состав из 11 игроков</p>
+<div id="squad">Пока состав не выбран</div>
+</div>
+
+<div class="tabs">
+<button onclick="showPosition('Нападающий')">Нападающие</button>
+<button onclick="showPosition('Полузащитник')">Полузащитники</button>
+<button onclick="showPosition('Защитник')">Защитники</button>
+<button onclick="showPosition('Вратарь')">Вратари</button>
+</div>
+
+<div class="card">
+<h2 id="positionTitle">Выбери позицию</h2>
+<select id="clubFilter" onchange="loadPlayers()">
+<option value="">Все клубы</option>
+</select>
+<div id="players">Загрузка игроков...</div>
+<div id="message"></div>
+</div>
+
+<div class="card">
+<h2>Рейтинг игроков</h2>
+<div id="ranking">Статистика появится после первого тура</div>
+</div>
+</main>
+
+<script>
+let selectedPosition='';
+let players=[];
+let squad=[];
+const budgetLimit=225000;
+const limits={
+'Нападающий':3,
+'Полузащитник':4,
+'Защитник':3,
+'Вратарь':1
+};
+
+async function request(url){
+const response=await fetch(url);
+if(!response.ok) throw new Error('Ошибка загрузки');
+return response.json();
+}
+
+async function loadClubs(){
+try{
+const clubs=await request('/api/clubs');
+document.getElementById('clubFilter').innerHTML=
+'<option value="">Все клубы</option>'+
+clubs.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+}catch(e){}
+}
+
+async function loadPlayers(){
+const club=document.getElementById('clubFilter').value;
+const query=new URLSearchParams();
+if(selectedPosition)query.set('position',selectedPosition);
+if(club)query.set('club_id',club);
+try{
+players=await request('/api/players?'+query.toString());
+renderPlayers();
+}catch(e){
+document.getElementById('players').textContent='Не удалось загрузить игроков';
+}
+}
+
+function showPosition(position){
+selectedPosition=position;
+document.getElementById('positionTitle').textContent=position;
+loadPlayers();
+}
+
+function renderPlayers(){
+const container=document.getElementById('players');
+if(!players.length){
+container.textContent='Пока игроков нет. Они появятся после добавления администратором.';
+return;
+}
+container.innerHTML=players.map(p=>`
+<div class="player">
+<div>${p.first_name} ${p.last_name}
+<small>${p.club_name||'Клуб не указан'} · ${p.price.toLocaleString('ru-RU')}</small>
+</div>
+<button onclick="addPlayer(${p.id})">Добавить</button>
+</div>`).join('');
+}
+
+function addPlayer(id){
+const p=players.find(x=>x.id===id);
+if(!p)return;
+const count=squad.filter(x=>x.position===p.position).length;
+if(count>=limits[p.position]){
+message('Для этой позиции уже набрано нужное количество игроков');
+return;
+}
+if(squad.some(x=>x.id===id)){
+message('Этот игрок уже выбран');
+return;
+}
+if(squad.reduce((s,x)=>s+x.price,0)+p.price>budgetLimit){
+message('Не хватает бюджета');
+return;
+}
+squad.push(p);
+renderSquad();
+message('Игрок добавлен');
+}
+
+function removePlayer(id){
+squad=squad.filter(p=>p.id!==id);
+renderSquad();
+}
+
+function renderSquad(){
+const cost=squad.reduce((s,p)=>s+p.price,0);
+document.getElementById('budget').textContent=
+`Потрачено: ${cost.toLocaleString('ru-RU')} / 225 000`;
+document.getElementById('squad').innerHTML=
+squad.length? squad.map(p=>`
+<div class="player">
+<span>${p.first_name} ${p.last_name}</span>
+<button onclick="removePlayer(${p.id})">Убрать</button>
+</div>`).join(''):'Пока состав не выбран';
+}
+
+function message(text){
+document.getElementById('message').textContent=text;
+}
+
+loadClubs();
+loadPlayers();
+</script>
+</body>
+</html>
