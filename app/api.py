@@ -254,6 +254,42 @@ async def add_round(
 
 @router.get("/api/rounds")
 async def get_rounds():
+    @router.post("/api/rounds/{round_id}/open")
+async def open_round(
+    round_id: int,
+    _: None = Depends(verify_admin)
+):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "SELECT id FROM rounds WHERE id = ?",
+            (round_id,)
+        )
+        if not await cursor.fetchone():
+            raise HTTPException(404, "Тур не найден")
+
+        await db.execute("UPDATE rounds SET is_open = 0")
+        await db.execute(
+            "UPDATE rounds SET is_open = 1 WHERE id = ?",
+            (round_id,)
+        )
+        await db.commit()
+
+    return {"ok": True, "message": "Тур открыт"}
+
+
+@router.post("/api/rounds/{round_id}/close")
+async def close_round(
+    round_id: int,
+    _: None = Depends(verify_admin)
+):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE rounds SET is_open = 0 WHERE id = ?",
+            (round_id,)
+        )
+        await db.commit()
+
+    return {"ok": True, "message": "Тур закрыт"}
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
