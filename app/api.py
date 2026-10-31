@@ -131,6 +131,7 @@ class PlayerData(BaseModel):
     price: int
     club_id: int | None = None
     photo: str | None = None
+    nationality: str | None = None
 
 
 class StatsData(BaseModel):
@@ -259,7 +260,8 @@ async def add_player(data: PlayerData, _: None = Depends(verify_admin)):
             "position": data.position,
             "price": data.price,
             "club_id": data.club_id,
-            "photo": data.photo
+            "photo": data.photo,
+            "nationality": data.nationality
         }).execute()
 
         return {"ok": True, "id": result.data[0]["id"]}
