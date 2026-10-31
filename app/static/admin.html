@@ -17,6 +17,7 @@ button{background:#a52c50;color:white;border:0;font-weight:bold;cursor:pointer}
 .closed{color:#ff9bab}
 #resultMessage{color:#ffb7cb}
 .preview{max-width:130px;max-height:130px;display:none;margin:10px auto;border-radius:10px}
+label{display:block;margin-top:10px}
 </style>
 </head>
 <body>
@@ -58,6 +59,9 @@ button{background:#a52c50;color:white;border:0;font-weight:bold;cursor:pointer}
 <select id="clubSelect">
 <option value="">Выбери клуб</option>
 </select>
+
+<label>Гражданство игрока</label>
+<input id="nationality" placeholder="Например: Россия, Швеция, Финляндия">
 
 <label>Фотография игрока</label>
 <input id="playerImage" type="file" accept="image/jpeg,image/png,image/webp">
@@ -239,9 +243,11 @@ async function addPlayer(){
         const last = document.getElementById("last").value.trim();
         const price = Number(document.getElementById("price").value);
         const clubId = Number(document.getElementById("clubSelect").value);
+        const nationality = document.getElementById("nationality").value.trim();
 
         if(!first || !last) throw new Error("Введи имя и фамилию");
         if(price < 5000 || price > 35000) throw new Error("Цена должна быть от 5000 до 35000");
+        if(!nationality) throw new Error("Введи гражданство игрока");
 
         showMessage("Загружаем фотографию...");
 
@@ -253,13 +259,16 @@ async function addPlayer(){
             position: document.getElementById("position").value,
             price: price,
             club_id: clubId || null,
-            photo: photo
+            photo: photo,
+            nationality: nationality
         });
 
         showMessage("Игрок добавлен!");
+
         document.getElementById("first").value = "";
         document.getElementById("last").value = "";
         document.getElementById("price").value = "";
+        document.getElementById("nationality").value = "";
         document.getElementById("playerImage").value = "";
         document.getElementById("playerPreview").style.display = "none";
     }catch(e){
