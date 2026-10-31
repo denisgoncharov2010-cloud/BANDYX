@@ -40,6 +40,85 @@ input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white
 .empty{text-align:center;color:#c9a8b6;padding:20px 5px}
 .section{display:none}
 .section.active{display:block}
+
+/* Карточка игрока */
+.player-name{cursor:pointer;flex:1;min-width:0}
+.player-name strong{color:#fff}
+.player-name:active{opacity:.7}
+.player-modal{
+    display:none;
+    position:fixed;
+    inset:0;
+    z-index:1000;
+    background:rgba(0,0,0,.82);
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+}
+.player-modal.open{display:flex}
+.player-card{
+    position:relative;
+    width:100%;
+    max-width:350px;
+    background:#291722;
+    border:1px solid #a52c50;
+    border-radius:20px;
+    padding:22px;
+    text-align:center;
+    box-shadow:0 10px 40px rgba(0,0,0,.5);
+}
+.player-card-close{
+    position:absolute;
+    right:12px;
+    top:12px;
+    width:35px;
+    height:35px;
+    padding:0;
+    font-size:22px;
+    background:#542238;
+}
+.player-card-photo{
+    width:150px;
+    height:150px;
+    object-fit:cover;
+    border-radius:15px;
+    background:#160d13;
+    border:2px solid #a52c50;
+    margin:12px auto 16px;
+    display:block;
+}
+.player-card-no-photo{
+    width:150px;
+    height:150px;
+    border-radius:15px;
+    background:#160d13;
+    border:2px solid #a52c50;
+    margin:12px auto 16px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:55px;
+}
+.player-card h2{
+    font-size:23px;
+    margin:0 0 18px;
+}
+.player-card-info{
+    background:#1b1018;
+    border-radius:12px;
+    padding:13px;
+    margin-top:10px;
+    text-align:left;
+}
+.player-card-info span{
+    color:#c9a8b6;
+    font-size:13px;
+    display:block;
+    margin-bottom:5px;
+}
+.player-card-info strong{
+    font-size:16px;
+}
 </style>
 </head>
 
@@ -86,7 +165,6 @@ input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white
 </div>
 
 <div id="ratingsSection" class="section">
-
 <div class="card">
 <h2>Рейтинги BANDYX</h2>
 <p class="muted">Соревнование всех участников фэнтези</p>
@@ -109,10 +187,17 @@ input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white
 <div class="empty">Загрузка рейтинга...</div>
 </div>
 </div>
-
 </div>
 
 </main>
+
+<!-- Окно карточки игрока -->
+<div id="playerModal" class="player-modal" onclick="closePlayerCard(event)">
+    <div class="player-card" onclick="event.stopPropagation()">
+        <button class="player-card-close" onclick="closePlayerCard()">×</button>
+        <div id="playerCardContent"></div>
+    </div>
+</div>
 
 <script>
 const tg = window.Telegram?.WebApp;
@@ -282,9 +367,9 @@ function renderPlayers() {
 
         return `
         <div class="player">
-            <div>
-                ${escapeHtml(p.first_name)} ${escapeHtml(p.last_name)}
-                <small>${escapeHtml(p.club_name || 'Клуб не указан')} · ${p.price.toLocaleString('ru-RU')}</small>
+            <div class="player-name" onclick="openPlayerCard(${p.id})">
+                <strong>${escapeHtml(p.first_name)} ${escapeHtml(p.last_name)}</strong>
+                <small>${escapeHtml(p.club_name || 'Клуб не указан')} · ${Number(p.price).toLocaleString('ru-RU')}</small>
             </div>
             <button
                 onclick="addPlayer(${p.id})"
@@ -351,7 +436,9 @@ function renderSquad() {
             <strong>${positionNames[position]} (${selected.length}/${limits[position]})</strong>
             ${selected.map(p => `
                 <div class="player">
-                    <span>${escapeHtml(p.first_name)} ${escapeHtml(p.last_name)}</span>
+                    <span class="player-name" onclick="openPlayerCard(${p.id})">
+                        ${escapeHtml(p.first_name)} ${escapeHtml(p.last_name)}
+                    </span>
                     <button onclick="removePlayer(${p.id})">Убрать</button>
                 </div>
             `).join('')}
@@ -388,6 +475,94 @@ async function saveSquad() {
 
 function showMessage(text) {
     document.getElementById('message').textContent = text;
+}
+
+// КАРТОЧКИ ИГРОКОВ
+
+const countryFlags = {
+    'россия': '🇷🇺',
+    'russia': '🇷🇺',
+    'швеция': '🇸🇪',
+    'sweden': '🇸🇪',
+    'финляндия': '🇫🇮',
+    'finland': '🇫🇮',
+    'казахстан': '🇰🇿',
+    'kazakhstan': '🇰🇿',
+    'норвегия': '🇳🇴',
+    'norway': '🇳🇴',
+    'германия': '🇩🇪',
+    'germany': '🇩🇪',
+    'швейцария': '🇨🇭',
+    'switzerland': '🇨🇭',
+    'чехия': '🇨🇿',
+    'czech republic': '🇨🇿',
+    'сша': '🇺🇸',
+    'usa': '🇺🇸',
+    'канада': '🇨🇦',
+    'canada': '🇨🇦',
+    'латвия': '🇱🇻',
+    'latvia': '🇱🇻',
+    'эстония': '🇪🇪',
+    'estonia': '🇪🇪',
+    'дания': '🇩🇰',
+    'denmark': '🇩🇰',
+    'нидерланды': '🇳🇱',
+    'netherlands': '🇳🇱',
+    'украина': '🇺🇦',
+    'ukraine': '🇺🇦',
+    'беларусь': '🇧🇾',
+    'belarus': '🇧🇾'
+};
+
+function getCountryFlag(country) {
+    const normalized = String(country || '').trim().toLowerCase();
+    return countryFlags[normalized] || '';
+}
+
+function openPlayerCard(id) {
+    const player =
+        players.find(p => Number(p.id) === Number(id)) ||
+        squad.find(p => Number(p.id) === Number(id));
+
+    if (!player) return;
+
+    const country = player.nationality || 'Не указано';
+    const flag = getCountryFlag(country);
+    const position = positionNames[player.position] || player.position || 'Не указана';
+
+    const photo = player.photo
+        ? `<img class="player-card-photo" src="${escapeHtml(player.photo)}" alt="Фото игрока" onerror="this.outerHTML='<div class=&quot;player-card-no-photo&quot;>🏑</div>'">`
+        : `<div class="player-card-no-photo">🏑</div>`;
+
+    document.getElementById('playerCardContent').innerHTML = `
+        ${photo}
+        <h2>${escapeHtml(player.first_name)} ${escapeHtml(player.last_name)}</h2>
+
+        <div class="player-card-info">
+            <span>Позиция</span>
+            <strong>${escapeHtml(position)}</strong>
+        </div>
+
+        <div class="player-card-info">
+            <span>Гражданство</span>
+            <strong>${flag ? flag + ' ' : ''}${escapeHtml(country)}</strong>
+        </div>
+
+        <div class="player-card-info">
+            <span>Цена игрока</span>
+            <strong>${Number(player.price).toLocaleString('ru-RU')}</strong>
+        </div>
+    `;
+
+    document.getElementById('playerModal').classList.add('open');
+}
+
+function closePlayerCard(event) {
+    if (event && event.target !== document.getElementById('playerModal')) {
+        return;
+    }
+
+    document.getElementById('playerModal').classList.remove('open');
 }
 
 // РЕЙТИНГИ
