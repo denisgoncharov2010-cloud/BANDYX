@@ -11,7 +11,11 @@ header{background:#6e1735;padding:18px;border-radius:12px;text-align:center}
 .card{background:#291722;border:1px solid #693047;padding:16px;border-radius:12px;margin-top:16px}
 input,select,button{width:100%;padding:12px;margin:7px 0;border-radius:8px;box-sizing:border-box}
 input,select{background:#170f15;color:white;border:1px solid #754057}
-button{background:#a52c50;color:white;border:0;font-weight:bold}
+button{background:#a52c50;color:white;border:0;font-weight:bold;cursor:pointer}
+.round{padding:12px;margin:10px 0;background:#170f15;border:1px solid #754057;border-radius:9px}
+.round button{width:48%;display:inline-block}
+.open{color:#70e49b}
+.closed{color:#ff9bab}
 #resultMessage{color:#ffb7cb}
 </style>
 </head>
@@ -25,7 +29,7 @@ button{background:#a52c50;color:white;border:0;font-weight:bold}
 <div class="card">
 <h3>Доступ администратора</h3>
 <input id="adminSecret" type="password" placeholder="Пароль администратора">
-<p>Введи пароль, который мы настроим в Render.</p>
+<p>Введи пароль администратора из Render.</p>
 </div>
 
 <div class="card">
@@ -50,13 +54,16 @@ button{background:#a52c50;color:white;border:0;font-weight:bold}
 <select id="clubSelect">
 <option value="">Выбери клуб</option>
 </select>
+
 <button onclick="addPlayer()">Добавить игрока</button>
 </div>
 
 <div class="card">
-<h3>Создать тур</h3>
-<input id="round" placeholder="Например: Тур 1">
+<h3>Управление турами</h3>
+<input id="round" placeholder="Название тура, например Тур 1">
 <button onclick="addRound()">Создать тур</button>
+<button onclick="loadRounds()">Обновить список туров</button>
+<div id="roundList">Загрузка туров...</div>
 </div>
 
 <div class="card">
@@ -91,12 +98,16 @@ async function api(url, method="GET", data=null){
         }
     };
 
-    if(data) options.body = JSON.stringify(data);
+    if(data !== null){
+        options.body = JSON.stringify(data);
+    }
 
     const response = await fetch(url, options);
     const result = await response.json();
 
-    if(!response.ok) throw new Error(result.detail || "Ошибка");
+    if(!response.ok){
+        throw new Error(result.detail || "Ошибка");
+    }
 
     return result;
 }
@@ -106,14 +117,19 @@ async function addClub(){
         await api("/api/clubs", "POST", {
             name: document.getElementById("club").value
         });
+
         showMessage("Клуб добавлен!");
+        document.getElementById("club").value = "";
         await loadClubs();
-    }catch(e){showError(e)}
+    }catch(e){
+        showError(e);
+    }
 }
 
 async function loadClubs(){
     try{
         const clubs = await api("/api/clubs");
+
         document.getElementById("clubSelect").innerHTML =
             '<option value="">Выбери клуб</option>' +
             clubs.map(c =>
@@ -131,16 +147,83 @@ async function addPlayer(){
             price: Number(document.getElementById("price").value),
             club_id: Number(document.getElementById("clubSelect").value) || null
         });
+
         showMessage("Игрок добавлен!");
-    }catch(e){showError(e)}
+    }catch(e){
+        showError(e);
+    }
 }
 
 async function addRound(){
     try{
-        const name = document.getElementById("round").value;
-        await api("/api/rounds?name=" + encodeURIComponent(name), "POST");
-        showMessage("Тур создан!");
-    }catch(e){showError(e)}
+        const name = document.getElementById("round").value.trim();
+
+        if(!name){
+            throw new Error("Введи название тура");
+        }
+
+        const result = await api(
+            "/api/rounds?name=" + encodeURIComponent(name),
+            "POST"
+        );
+
+        document.getElementById("round").value = "";
+        document.getElementById("roundId").value = result.id;
+
+        showMessage("Тур создан! ID тура: " + result.id);
+        await loadRounds();
+    }catch(e){
+        showError(e);
+    }
+}
+
+async function loadRounds(){
+    const container = document.getElementById("roundList");
+
+    try{
+        const rounds = await api("/api/rounds");
+
+        if(!rounds.length){
+            container.textContent = "Пока туров нет";
+            return;
+        }
+
+        container.innerHTML = rounds.map(r => `
+            <div class="round">
+                <strong>${r.name}</strong>
+                <p>ID: ${r.id}</p>
+                <p class="${r.is_open ? 'open' : 'closed'}">
+                    ${r.is_open ? '● Тур открыт' : '● Тур закрыт'}
+                </p>
+                <button onclick="openRound(${r.id})">Открыть тур</button>
+                <button onclick="closeRound(${r.id})">Закрыть тур</button>
+            </div>
+        `).join("");
+
+    }catch(e){
+        container.textContent = "Не удалось загрузить туры";
+    }
+}
+
+async function openRound(id){
+    try{
+        await api(`/api/rounds/${id}/open`, "POST");
+        document.getElementById("roundId").value = id;
+        showMessage("Тур открыт!");
+        await loadRounds();
+    }catch(e){
+        showError(e);
+    }
+}
+
+async function closeRound(id){
+    try{
+        await api(`/api/rounds/${id}/close`, "POST");
+        showMessage("Тур закрыт!");
+        await loadRounds();
+    }catch(e){
+        showError(e);
+    }
 }
 
 async function addStats(){
@@ -154,8 +237,11 @@ async function addStats(){
             penalties_saved: Number(document.getElementById("penalties").value),
             team_result: document.getElementById("teamResult").value
         });
+
         showMessage("Статистика сохранена!");
-    }catch(e){showError(e)}
+    }catch(e){
+        showError(e);
+    }
 }
 
 function showMessage(message){
@@ -168,6 +254,7 @@ function showError(e){
 }
 
 loadClubs();
+loadRounds();
 </script>
 
 </body>
