@@ -17,6 +17,8 @@ button{background:#a52c50;color:white;border:0;font-weight:bold;cursor:pointer}
 .open{color:#70e49b}
 .closed{color:#ff9bab}
 #resultMessage{color:#ffb7cb}
+.preview{max-width:130px;max-height:130px;display:none;margin:10px auto;border-radius:10px}
+.hint{color:#c9aab8;font-size:13px}
 </style>
 </head>
 <body>
@@ -35,6 +37,9 @@ button{background:#a52c50;color:white;border:0;font-weight:bold;cursor:pointer}
 <div class="card">
 <h3>Добавить клуб</h3>
 <input id="club" placeholder="Название клуба">
+<label>Эмблема клуба</label>
+<input id="clubImage" type="file" accept="image/jpeg,image/png,image/webp">
+<img id="clubPreview" class="preview" alt="Предпросмотр эмблемы">
 <button onclick="addClub()">Добавить клуб</button>
 </div>
 
@@ -54,6 +59,10 @@ button{background:#a52c50;color:white;border:0;font-weight:bold;cursor:pointer}
 <select id="clubSelect">
 <option value="">Выбери клуб</option>
 </select>
+
+<label>Фотография игрока</label>
+<input id="playerImage" type="file" accept="image/jpeg,image/png,image/webp">
+<img id="playerPreview" class="preview" alt="Предпросмотр фотографии">
 
 <button onclick="addPlayer()">Добавить игрока</button>
 </div>
@@ -112,14 +121,80 @@ async function api(url, method="GET", data=null){
     return result;
 }
 
+async function uploadImage(inputId){
+    const file = document.getElementById(inputId).files[0];
+
+    if(!file) return null;
+
+    if(file.size > 10 * 1024 * 1024){
+        throw new Error("Файл больше 10 МБ");
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/upload", {
+        method: "POST",
+        headers: {
+            "X-Admin-Secret": document.getElementById("adminSecret").value
+        },
+        body: formData
+    });
+
+    const result = await response.json();
+
+    if(!response.ok){
+        throw new Error(result.detail || "Не удалось загрузить изображение");
+    }
+
+    const imageUrl = result.url || result.public_url;
+
+    if(!imageUrl){
+        throw new Error("Сервер не вернул ссылку на изображение");
+    }
+
+    return imageUrl;
+}
+
+function previewImage(inputId, previewId){
+    const input = document.getElementById(inputId);
+    const preview = document.getElementById(previewId);
+
+    input.addEventListener("change", () => {
+        const file = input.files[0];
+
+        if(!file){
+            preview.style.display = "none";
+            return;
+        }
+
+        preview.src = URL.createObjectURL(file);
+        preview.style.display = "block";
+    });
+}
+
+previewImage("clubImage", "clubPreview");
+previewImage("playerImage", "playerPreview");
+
 async function addClub(){
     try{
+        const name = document.getElementById("club").value.trim();
+
+        if(!name) throw new Error("Введи название клуба");
+
+        showMessage("Загружаем эмблему...");
+
+        const logo = await uploadImage("clubImage");
+
         await api("/api/clubs", "POST", {
-            name: document.getElementById("club").value
+            name: name,
+            logo: logo
         });
 
         showMessage("Клуб добавлен!");
         document.getElementById("club").value = "";
+        document.getElementById("clubImage").value = "";
+        document.getElementById("clubPreview").style.display = "none";
         await loadClubs();
     }catch(e){
         showError(e);
@@ -140,15 +215,33 @@ async function loadClubs(){
 
 async function addPlayer(){
     try{
+        const first = document.getElementById("first").value.trim();
+        const last = document.getElementById("last").value.trim();
+        const price = Number(document.getElementById("price").value);
+        const clubId = Number(document.getElementById("clubSelect").value);
+
+        if(!first || !last) throw new Error("Введи имя и фамилию игрока");
+        if(!price) throw new Error("Укажи цену игрока");
+
+        showMessage("Загружаем фотографию...");
+
+        const photo = await uploadImage("playerImage");
+
         await api("/api/players", "POST", {
-            first_name: document.getElementById("first").value,
-            last_name: document.getElementById("last").value,
+            first_name: first,
+            last_name: last,
             position: document.getElementById("position").value,
-            price: Number(document.getElementById("price").value),
-            club_id: Number(document.getElementById("clubSelect").value) || null
+            price: price,
+            club_id: clubId || null,
+            photo: photo
         });
 
         showMessage("Игрок добавлен!");
+        document.getElementById("first").value = "";
+        document.getElementById("last").value = "";
+        document.getElementById("price").value = "";
+        document.getElementById("playerImage").value = "";
+        document.getElementById("playerPreview").style.display = "none";
     }catch(e){
         showError(e);
     }
@@ -158,9 +251,7 @@ async function addRound(){
     try{
         const name = document.getElementById("round").value.trim();
 
-        if(!name){
-            throw new Error("Введи название тура");
-        }
+        if(!name) throw new Error("Введи название тура");
 
         const result = await api(
             "/api/rounds?name=" + encodeURIComponent(name),
