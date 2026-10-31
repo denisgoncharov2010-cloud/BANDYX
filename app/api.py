@@ -5,6 +5,7 @@ import json
 import hashlib
 import urllib.parse
 import time
+import uuid
 import aiosqlite
 
 from aiogram import Bot
@@ -80,8 +81,7 @@ def verify_telegram(init_data: str | None):
         if not hmac.compare_digest(calculated_hash, received_hash):
             raise ValueError("Неверная подпись")
 
-        user = json.loads(data["user"])
-        return user
+        return json.loads(data["user"])
 
     except Exception:
         raise HTTPException(401, "Не удалось подтвердить Telegram")
@@ -112,6 +112,11 @@ async def get_user(
 
 class ClubData(BaseModel):
     name: str
+    logo: str | None = None
+
+
+class ClubLogoData(BaseModel):
+    logo: str
 
 
 class PlayerData(BaseModel):
@@ -137,10 +142,24 @@ class SquadData(BaseModel):
     player_ids: list[int]
 
 
+class MatchData(BaseModel):
+    round_id: int
+    home_club_id: int
+    away_club_id: int
+    match_date: str | None = None
+
+
+class MatchResultData(BaseModel):
+    home_score: int
+    away_score: int
+
+
 @router.get("/api/health")
 async def health():
     return {"status": "ok", "app": "BANDYX"}
 
+
+# КЛУБЫ
 
 @router.get("/api/clubs")
 async def get_clubs():
@@ -159,16 +178,36 @@ async def add_club(
 ):
     async with aiosqlite.connect(DB_PATH) as db:
         try:
-            await db.execute(
-                "INSERT INTO clubs (name) VALUES (?)",
-                (data.name,)
+            cursor = await db.execute(
+                "INSERT INTO clubs (name, logo) VALUES (?, ?)",
+                (data.name, data.logo)
             )
             await db.commit()
+            return {"ok": True, "id": cursor.lastrowid}
         except aiosqlite.IntegrityError:
             raise HTTPException(400, "Клуб уже существует")
 
+
+@router.post("/api/clubs/{club_id}/logo")
+async def update_club_logo(
+    club_id: int,
+    data: ClubLogoData,
+    _: None = Depends(verify_admin)
+):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "UPDATE clubs SET logo = ? WHERE id = ?",
+            (data.logo, club_id)
+        )
+        await db.commit()
+
+        if cursor.rowcount == 0:
+            raise HTTPException(404, "Клуб не найден")
+
     return {"ok": True}
 
+
+# ИГРОКИ
 
 @router.get("/api/players")
 async def get_players(
@@ -227,27 +266,41 @@ async def add_player(
             )
         )
         await db.commit()
-
         return {"ok": True, "id": cursor.lastrowid}
 
+
+# ЗАГРУЗКА ФОТО И ЭМБЛЕМ
 
 @router.post("/api/upload")
 async def upload_photo(
     file: UploadFile = File(...),
     _: None = Depends(verify_admin)
 ):
-    os.makedirs("uploads", exist_ok=True)
-
-    filename = os.path.basename(file.filename or "photo.jpg")
-    path = os.path.join("uploads", filename)
+    if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(400, "Разрешены только JPG, PNG и WEBP")
 
     content = await file.read()
+
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(400, "Размер изображения не должен превышать 5 МБ")
+
+    extension = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp"
+    }[file.content_type]
+
+    os.makedirs("uploads", exist_ok=True)
+    filename = str(uuid.uuid4()) + extension
+    path = os.path.join("uploads", filename)
 
     with open(path, "wb") as output:
         output.write(content)
 
     return {"url": f"/uploads/{filename}"}
 
+
+# ТУРЫ
 
 @router.post("/api/rounds")
 async def add_round(
@@ -260,7 +313,6 @@ async def add_round(
             (name,)
         )
         await db.commit()
-
         return {"ok": True, "id": cursor.lastrowid}
 
 
@@ -313,6 +365,107 @@ async def close_round(
     return {"ok": True, "message": "Тур закрыт"}
 
 
+# МАТЧИ
+
+@router.get("/api/matches")
+async def get_matches(round_id: int | None = None):
+    query = """
+        SELECT
+            matches.*,
+            rounds.name AS round_name,
+            home.name AS home_club_name,
+            home.logo AS home_club_logo,
+            away.name AS away_club_name,
+            away.logo AS away_club_logo
+        FROM matches
+        JOIN rounds ON matches.round_id = rounds.id
+        JOIN clubs AS home ON matches.home_club_id = home.id
+        JOIN clubs AS away ON matches.away_club_id = away.id
+    """
+    params = []
+
+    if round_id is not None:
+        query += " WHERE matches.round_id = ?"
+        params.append(round_id)
+
+    query += " ORDER BY matches.match_date, matches.id"
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(query, params)
+        return [dict(row) for row in await cursor.fetchall()]
+
+
+@router.post("/api/matches")
+async def add_match(
+    data: MatchData,
+    _: None = Depends(verify_admin)
+):
+    if data.home_club_id == data.away_club_id:
+        raise HTTPException(400, "Команды матча должны отличаться")
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "SELECT id FROM rounds WHERE id = ?",
+            (data.round_id,)
+        )
+        if not await cursor.fetchone():
+            raise HTTPException(404, "Тур не найден")
+
+        for club_id in (data.home_club_id, data.away_club_id):
+            cursor = await db.execute(
+                "SELECT id FROM clubs WHERE id = ?",
+                (club_id,)
+            )
+            if not await cursor.fetchone():
+                raise HTTPException(404, "Клуб не найден")
+
+        cursor = await db.execute(
+            """
+            INSERT INTO matches
+            (round_id, home_club_id, away_club_id, match_date)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                data.round_id,
+                data.home_club_id,
+                data.away_club_id,
+                data.match_date
+            )
+        )
+        await db.commit()
+
+        return {"ok": True, "id": cursor.lastrowid}
+
+
+@router.post("/api/matches/{match_id}/result")
+async def set_match_result(
+    match_id: int,
+    data: MatchResultData,
+    _: None = Depends(verify_admin)
+):
+    if data.home_score < 0 or data.away_score < 0:
+        raise HTTPException(400, "Счёт не может быть отрицательным")
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """
+            UPDATE matches
+            SET home_score = ?, away_score = ?, status = 'completed'
+            WHERE id = ?
+            """,
+            (data.home_score, data.away_score, match_id)
+        )
+        await db.commit()
+
+        if cursor.rowcount == 0:
+            raise HTTPException(404, "Матч не найден")
+
+    return {"ok": True}
+
+
+# СОСТАВ
+
 @router.get("/api/squad")
 async def get_squad(
     telegram_id: int = Depends(get_user)
@@ -357,14 +510,10 @@ async def save_squad(
     telegram_id: int = Depends(get_user)
 ):
     if len(data.player_ids) != 11:
-        raise HTTPException(
-            400, "В составе должно быть ровно 11 игроков"
-        )
+        raise HTTPException(400, "В составе должно быть ровно 11 игроков")
 
     if len(set(data.player_ids)) != 11:
-        raise HTTPException(
-            400, "Нельзя выбирать одного игрока дважды"
-        )
+        raise HTTPException(400, "Нельзя выбирать одного игрока дважды")
 
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -393,9 +542,7 @@ async def save_squad(
         players = await cursor.fetchall()
 
         if len(players) != 11:
-            raise HTTPException(
-                400, "Некоторые игроки не найдены или недоступны"
-            )
+            raise HTTPException(400, "Некоторые игроки не найдены или недоступны")
 
         counts = {position: 0 for position in POSITION_LIMITS}
         total_cost = 0
@@ -445,6 +592,8 @@ async def save_squad(
         "total_cost": total_cost
     }
 
+
+# СТАТИСТИКА
 
 @router.post("/api/stats")
 async def add_stats(
