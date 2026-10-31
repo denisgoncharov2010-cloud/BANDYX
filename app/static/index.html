@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BANDYX</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#160d13;color:white;font-family:Arial,sans-serif}
@@ -25,8 +26,23 @@ input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white
 .muted{color:#c9a8b6;font-size:13px}
 #message{color:#ffb7cb;margin-top:10px}
 #saveButton{width:100%;margin-top:14px}
+.nav{display:flex;gap:8px;margin-bottom:15px}
+.nav button{flex:1}
+.nav button.active,.rating-tabs button.active,.period-tabs button.active{background:#e04c78}
+.rating-tabs,.period-tabs{display:flex;gap:7px;margin:10px 0;flex-wrap:wrap}
+.rating-tabs button,.period-tabs button{flex:1}
+.rating-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #543044}
+.place{font-size:19px;font-weight:bold;min-width:28px;text-align:center;color:#f2cbd8}
+.rating-photo{width:45px;height:45px;border-radius:50%;object-fit:cover;background:#4b2939}
+.rating-info{flex:1;min-width:0}
+.rating-info strong{display:block;overflow-wrap:anywhere}
+.rating-points{font-weight:bold;color:#ff9cba;white-space:nowrap}
+.empty{text-align:center;color:#c9a8b6;padding:20px 5px}
+.section{display:none}
+.section.active{display:block}
 </style>
 </head>
+
 <body>
 <header>
 <h1>BANDYX</h1>
@@ -34,6 +50,14 @@ input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white
 </header>
 
 <main>
+
+<div class="nav">
+<button id="teamTab" class="active" onclick="showSection('team')">Моя команда</button>
+<button id="ratingTab" onclick="showSection('ratings')">Рейтинги</button>
+</div>
+
+<div id="teamSection" class="section active">
+
 <div class="card">
 <h2>Моя команда</h2>
 <div id="budget">Бюджет: 225 000</div>
@@ -59,14 +83,40 @@ input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white
 <div id="message"></div>
 </div>
 
-<div class="card">
-<h2>Рейтинг игроков</h2>
-<div id="ranking">Статистика появится после первого тура</div>
 </div>
+
+<div id="ratingsSection" class="section">
+
+<div class="card">
+<h2>Рейтинги BANDYX</h2>
+<p class="muted">Соревнование всех участников фэнтези</p>
+
+<div class="rating-tabs">
+<button id="usersRatingTab" class="active" onclick="changeRating('users')">Пользователи</button>
+<button id="playersRatingTab" onclick="changeRating('players')">Игроки</button>
+</div>
+
+<div class="period-tabs">
+<button id="allTimeTab" class="active" onclick="changePeriod('all')">За всё время</button>
+<button id="roundTab" onclick="changePeriod('round')">За тур</button>
+</div>
+
+<select id="ratingRound" style="display:none" onchange="loadRatings()">
+<option value="">Выбери тур</option>
+</select>
+
+<div id="ranking">
+<div class="empty">Загрузка рейтинга...</div>
+</div>
+</div>
+
+</div>
+
 </main>
 
 <script>
 const tg = window.Telegram?.WebApp;
+
 if (tg) {
     tg.ready();
     tg.expand();
@@ -76,6 +126,9 @@ let selectedPosition = '';
 let players = [];
 let squad = [];
 let currentRound = null;
+
+let currentRating = 'users';
+let currentPeriod = 'all';
 
 const budgetLimit = 225000;
 
@@ -123,13 +176,34 @@ async function request(url, method = 'GET', data = null, auth = false) {
     return result;
 }
 
+function showSection(section) {
+    document.getElementById('teamSection').classList.toggle(
+        'active', section === 'team'
+    );
+    document.getElementById('ratingsSection').classList.toggle(
+        'active', section === 'ratings'
+    );
+
+    document.getElementById('teamTab').classList.toggle(
+        'active', section === 'team'
+    );
+    document.getElementById('ratingTab').classList.toggle(
+        'active', section === 'ratings'
+    );
+
+    if (section === 'ratings') {
+        loadRatings();
+    }
+}
+
 async function loadClubs() {
     try {
         const clubs = await request('/api/clubs');
+
         document.getElementById('clubFilter').innerHTML =
             '<option value="">Все клубы</option>' +
             clubs.map(c =>
-                `<option value="${c.id}">${c.name}</option>`
+                `<option value="${c.id}">${escapeHtml(c.name)}</option>`
             ).join('');
     } catch (e) {
         console.error(e);
@@ -170,6 +244,7 @@ async function loadSquad() {
             'Текущий тур: ' + currentRound.name;
 
         const allPlayers = await request('/api/players');
+
         squad = result.player_ids
             .map(id => allPlayers.find(p => p.id === id))
             .filter(Boolean);
@@ -178,6 +253,7 @@ async function loadSquad() {
     } catch (e) {
         document.getElementById('roundInfo').textContent =
             'Не удалось загрузить состав: ' + e.message;
+
         squad = [];
         renderSquad();
     }
@@ -185,8 +261,10 @@ async function loadSquad() {
 
 function showPosition(position) {
     selectedPosition = position;
+
     document.getElementById('positionTitle').textContent =
         positionNames[position];
+
     loadPlayers();
 }
 
@@ -205,8 +283,8 @@ function renderPlayers() {
         return `
         <div class="player">
             <div>
-                ${p.first_name} ${p.last_name}
-                <small>${p.club_name || 'Клуб не указан'} · ${p.price.toLocaleString('ru-RU')}</small>
+                ${escapeHtml(p.first_name)} ${escapeHtml(p.last_name)}
+                <small>${escapeHtml(p.club_name || 'Клуб не указан')} · ${p.price.toLocaleString('ru-RU')}</small>
             </div>
             <button
                 onclick="addPlayer(${p.id})"
@@ -273,7 +351,7 @@ function renderSquad() {
             <strong>${positionNames[position]} (${selected.length}/${limits[position]})</strong>
             ${selected.map(p => `
                 <div class="player">
-                    <span>${p.first_name} ${p.last_name}</span>
+                    <span>${escapeHtml(p.first_name)} ${escapeHtml(p.last_name)}</span>
                     <button onclick="removePlayer(${p.id})">Убрать</button>
                 </div>
             `).join('')}
@@ -312,10 +390,147 @@ function showMessage(text) {
     document.getElementById('message').textContent = text;
 }
 
+// РЕЙТИНГИ
+
+function changeRating(type) {
+    currentRating = type;
+
+    document.getElementById('usersRatingTab').classList.toggle(
+        'active', type === 'users'
+    );
+
+    document.getElementById('playersRatingTab').classList.toggle(
+        'active', type === 'players'
+    );
+
+    loadRatings();
+}
+
+function changePeriod(period) {
+    currentPeriod = period;
+
+    document.getElementById('allTimeTab').classList.toggle(
+        'active', period === 'all'
+    );
+
+    document.getElementById('roundTab').classList.toggle(
+        'active', period === 'round'
+    );
+
+    document.getElementById('ratingRound').style.display =
+        period === 'round' ? 'block' : 'none';
+
+    loadRatings();
+}
+
+async function loadRatingRounds() {
+    try {
+        const rounds = await request('/api/rounds');
+
+        const select = document.getElementById('ratingRound');
+
+        select.innerHTML =
+            '<option value="">Выбери тур</option>' +
+            rounds.map(r =>
+                `<option value="${r.id}">${escapeHtml(r.name)}</option>`
+            ).join('');
+
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function loadRatings() {
+    const container = document.getElementById('ranking');
+
+    container.innerHTML = '<div class="empty">Загрузка рейтинга...</div>';
+
+    try {
+        let url = currentRating === 'users'
+            ? '/api/ratings/users'
+            : '/api/ratings/players';
+
+        if (currentPeriod === 'round') {
+            const roundId = document.getElementById('ratingRound').value;
+
+            if (!roundId) {
+                container.innerHTML =
+                    '<div class="empty">Выбери тур для просмотра рейтинга</div>';
+                return;
+            }
+
+            url += '?round_id=' + encodeURIComponent(roundId);
+        }
+
+        const data = await request(url);
+
+        renderRatings(data);
+
+    } catch (e) {
+        container.innerHTML =
+            '<div class="empty">Не удалось загрузить рейтинг: ' +
+            escapeHtml(e.message) + '</div>';
+    }
+}
+
+function renderRatings(data) {
+    const container = document.getElementById('ranking');
+
+    if (!data.length) {
+        container.innerHTML =
+            '<div class="empty">Пока нет данных для рейтинга</div>';
+        return;
+    }
+
+    container.innerHTML = data.map(item => {
+        const name = currentRating === 'users'
+            ? (item.username ? '@' + item.username : 'Участник ' + item.telegram_id)
+            : item.first_name + ' ' + item.last_name;
+
+        const subtitle = currentRating === 'users'
+            ? 'Игроков в составах: ' + item.players_count
+            : positionNames[item.position] || item.position;
+
+        const photo = currentRating === 'players' && item.photo
+            ? `<img class="rating-photo" src="${escapeHtml(item.photo)}" alt="">`
+            : `<div class="rating-photo" style="display:flex;align-items:center;justify-content:center">🏑</div>`;
+
+        let medal = item.place;
+
+        if (item.place === 1) medal = '🥇';
+        if (item.place === 2) medal = '🥈';
+        if (item.place === 3) medal = '🥉';
+
+        return `
+        <div class="rating-row">
+            <div class="place">${medal}</div>
+            ${photo}
+            <div class="rating-info">
+                <strong>${escapeHtml(name)}</strong>
+                <small>${escapeHtml(subtitle)}</small>
+            </div>
+            <div class="rating-points">
+                ${item.points.toLocaleString('ru-RU')} оч.
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    })[char]);
+}
+
 async function init() {
     await loadClubs();
     await loadPlayers();
     await loadSquad();
+    await loadRatingRounds();
 }
 
 init();
