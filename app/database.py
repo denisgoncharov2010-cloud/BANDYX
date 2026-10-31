@@ -1,3 +1,4 @@
+
 import aiosqlite
 from pathlib import Path
 
@@ -18,9 +19,15 @@ async def init_db():
         await db.execute("""
             CREATE TABLE IF NOT EXISTS clubs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL
+                name TEXT UNIQUE NOT NULL,
+                logo TEXT
             )
         """)
+
+        cursor = await db.execute("PRAGMA table_info(clubs)")
+        club_columns = [row[1] for row in await cursor.fetchall()]
+        if "logo" not in club_columns:
+            await db.execute("ALTER TABLE clubs ADD COLUMN logo TEXT")
 
         await db.execute("""
             CREATE TABLE IF NOT EXISTS players (
@@ -41,6 +48,22 @@ async def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 is_open INTEGER DEFAULT 0
+            )
+        """)
+
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS matches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                round_id INTEGER NOT NULL,
+                home_club_id INTEGER NOT NULL,
+                away_club_id INTEGER NOT NULL,
+                match_date TEXT,
+                home_score INTEGER,
+                away_score INTEGER,
+                status TEXT DEFAULT 'scheduled',
+                FOREIGN KEY (round_id) REFERENCES rounds(id),
+                FOREIGN KEY (home_club_id) REFERENCES clubs(id),
+                FOREIGN KEY (away_club_id) REFERENCES clubs(id)
             )
         """)
 
