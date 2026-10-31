@@ -1,11 +1,14 @@
+
 import os
+import hmac
 import aiosqlite
 
 from aiogram import Bot
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Header
 from pydantic import BaseModel
 
 DB_PATH = "bandyx.db"
+ADMIN_SECRET = os.getenv("ADMIN_SECRET", "")
 router = APIRouter()
 bot = None
 
@@ -13,6 +16,15 @@ bot = None
 def set_bot(value: Bot):
     global bot
     bot = value
+
+
+def verify_admin(x_admin_secret: str | None = Header(default=None)):
+    if not ADMIN_SECRET:
+        raise HTTPException(503, "Администраторский пароль не настроен")
+    if not x_admin_secret or not hmac.compare_digest(
+        x_admin_secret, ADMIN_SECRET
+    ):
+        raise HTTPException(403, "Нет доступа")
 
 
 class ClubData(BaseModel):
@@ -52,12 +64,14 @@ async def get_clubs():
 
 
 @router.post("/api/clubs")
-async def add_club(data: ClubData):
+async def add_club(
+    data: ClubData,
+    _: None = __import__("fastapi").Depends(verify_admin)
+):
     async with aiosqlite.connect(DB_PATH) as db:
         try:
             await db.execute(
-                "INSERT INTO clubs (name) VALUES (?)",
-                (data.name,)
+                "INSERT INTO clubs (name) VALUES (?)", (data.name,)
             )
             await db.commit()
         except aiosqlite.IntegrityError:
@@ -89,9 +103,14 @@ async def get_players(position: str | None = None, club_id: int | None = None):
 
 
 @router.post("/api/players")
-async def add_player(data: PlayerData):
+async def add_player(
+    data: PlayerData,
+    _: None = __import__("fastapi").Depends(verify_admin)
+):
     if data.price < 5000 or data.price > 35000:
         raise HTTPException(400, "Цена должна быть от 5000 до 35000")
+    if data.position not in ("forward", "midfielder", "defender", "goalie"):
+        raise HTTPException(400, "Неверная позиция")
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
             """INSERT INTO players
@@ -105,7 +124,10 @@ async def add_player(data: PlayerData):
 
 
 @router.post("/api/upload")
-async def upload_photo(file: UploadFile = File(...)):
+async def upload_photo(
+    file: UploadFile = File(...),
+    _: None = __import__("fastapi").Depends(verify_admin)
+):
     os.makedirs("uploads", exist_ok=True)
     filename = os.path.basename(file.filename or "photo.jpg")
     path = os.path.join("uploads", filename)
@@ -116,7 +138,10 @@ async def upload_photo(file: UploadFile = File(...)):
 
 
 @router.post("/api/rounds")
-async def add_round(name: str):
+async def add_round(
+    name: str,
+    _: None = __import__("fastapi").Depends(verify_admin)
+):
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
             "INSERT INTO rounds (name) VALUES (?)", (name,)
@@ -134,7 +159,12 @@ async def get_rounds():
 
 
 @router.post("/api/stats")
-async def add_stats(data: StatsData):
+async def add_stats(
+    data: StatsData,
+    _: None = __import__("fastapi").Depends(verify_admin)
+):
+    if data.team_result not in ("win", "loss", "draw"):
+        raise HTTPException(400, "Неверный результат команды")
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             """INSERT INTO player_stats
