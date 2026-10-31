@@ -13,12 +13,10 @@ input,select,button{width:100%;padding:12px;margin:7px 0;border-radius:8px;box-s
 input,select{background:#170f15;color:white;border:1px solid #754057}
 button{background:#a52c50;color:white;border:0;font-weight:bold;cursor:pointer}
 .round{padding:12px;margin:10px 0;background:#170f15;border:1px solid #754057;border-radius:9px}
-.round button{width:48%;display:inline-block}
 .open{color:#70e49b}
 .closed{color:#ff9bab}
 #resultMessage{color:#ffb7cb}
 .preview{max-width:130px;max-height:130px;display:none;margin:10px auto;border-radius:10px}
-.hint{color:#c9aab8;font-size:13px}
 </style>
 </head>
 <body>
@@ -29,22 +27,22 @@ button{background:#a52c50;color:white;border:0;font-weight:bold;cursor:pointer}
 </header>
 
 <div class="card">
-<h3>Доступ администратора</h3>
+<h3>🔐 Доступ администратора</h3>
 <input id="adminSecret" type="password" placeholder="Пароль администратора">
 <p>Введи пароль администратора из Render.</p>
 </div>
 
 <div class="card">
-<h3>Добавить клуб</h3>
+<h3>🏒 Добавить клуб</h3>
 <input id="club" placeholder="Название клуба">
 <label>Эмблема клуба</label>
 <input id="clubImage" type="file" accept="image/jpeg,image/png,image/webp">
-<img id="clubPreview" class="preview" alt="Предпросмотр эмблемы">
+<img id="clubPreview" class="preview" alt="Эмблема">
 <button onclick="addClub()">Добавить клуб</button>
 </div>
 
 <div class="card">
-<h3>Добавить игрока</h3>
+<h3>👤 Добавить игрока</h3>
 <input id="first" placeholder="Имя игрока">
 <input id="last" placeholder="Фамилия игрока">
 
@@ -56,19 +54,20 @@ button{background:#a52c50;color:white;border:0;font-weight:bold;cursor:pointer}
 </select>
 
 <input id="price" type="number" placeholder="Цена (5000–35000)">
+
 <select id="clubSelect">
 <option value="">Выбери клуб</option>
 </select>
 
 <label>Фотография игрока</label>
 <input id="playerImage" type="file" accept="image/jpeg,image/png,image/webp">
-<img id="playerPreview" class="preview" alt="Предпросмотр фотографии">
+<img id="playerPreview" class="preview" alt="Фото игрока">
 
 <button onclick="addPlayer()">Добавить игрока</button>
 </div>
 
 <div class="card">
-<h3>Управление турами</h3>
+<h3>🏆 Управление турами</h3>
 <input id="round" placeholder="Название тура, например Тур 1">
 <button onclick="addRound()">Создать тур</button>
 <button onclick="loadRounds()">Обновить список туров</button>
@@ -76,7 +75,33 @@ button{background:#a52c50;color:white;border:0;font-weight:bold;cursor:pointer}
 </div>
 
 <div class="card">
-<h3>Добавить статистику игрока</h3>
+<h3>🏑 Управление матчами</h3>
+
+<label>Выбери тур</label>
+<select id="matchRound">
+<option value="">Выбери тур</option>
+</select>
+
+<label>Домашний клуб</label>
+<select id="homeClub">
+<option value="">Выбери клуб</option>
+</select>
+
+<label>Гостевой клуб</label>
+<select id="awayClub">
+<option value="">Выбери клуб</option>
+</select>
+
+<label>Дата и время матча</label>
+<input id="matchDate" type="datetime-local">
+
+<button onclick="addMatch()">Создать матч</button>
+<button onclick="loadMatches()">Обновить матчи</button>
+<div id="matchList"></div>
+</div>
+
+<div class="card">
+<h3>📊 Добавить статистику игрока</h3>
 <input id="roundId" type="number" placeholder="ID тура">
 <input id="playerId" type="number" placeholder="ID игрока">
 <input id="goals" type="number" placeholder="Голы" value="0">
@@ -123,7 +148,6 @@ async function api(url, method="GET", data=null){
 
 async function uploadImage(inputId){
     const file = document.getElementById(inputId).files[0];
-
     if(!file) return null;
 
     if(file.size > 10 * 1024 * 1024){
@@ -144,24 +168,19 @@ async function uploadImage(inputId){
     const result = await response.json();
 
     if(!response.ok){
-        throw new Error(result.detail || "Не удалось загрузить изображение");
+        throw new Error(result.detail || "Ошибка загрузки изображения");
     }
 
-    const imageUrl = result.url || result.public_url;
+    const url = result.url || result.public_url;
+    if(!url) throw new Error("Сервер не вернул ссылку на изображение");
 
-    if(!imageUrl){
-        throw new Error("Сервер не вернул ссылку на изображение");
-    }
-
-    return imageUrl;
+    return url;
 }
 
 function previewImage(inputId, previewId){
-    const input = document.getElementById(inputId);
-    const preview = document.getElementById(previewId);
-
-    input.addEventListener("change", () => {
-        const file = input.files[0];
+    document.getElementById(inputId).addEventListener("change", function(){
+        const file = this.files[0];
+        const preview = document.getElementById(previewId);
 
         if(!file){
             preview.style.display = "none";
@@ -179,7 +198,6 @@ previewImage("playerImage", "playerPreview");
 async function addClub(){
     try{
         const name = document.getElementById("club").value.trim();
-
         if(!name) throw new Error("Введи название клуба");
 
         showMessage("Загружаем эмблему...");
@@ -195,7 +213,9 @@ async function addClub(){
         document.getElementById("club").value = "";
         document.getElementById("clubImage").value = "";
         document.getElementById("clubPreview").style.display = "none";
+
         await loadClubs();
+        await loadMatchOptions();
     }catch(e){
         showError(e);
     }
@@ -220,8 +240,8 @@ async function addPlayer(){
         const price = Number(document.getElementById("price").value);
         const clubId = Number(document.getElementById("clubSelect").value);
 
-        if(!first || !last) throw new Error("Введи имя и фамилию игрока");
-        if(!price) throw new Error("Укажи цену игрока");
+        if(!first || !last) throw new Error("Введи имя и фамилию");
+        if(price < 5000 || price > 35000) throw new Error("Цена должна быть от 5000 до 35000");
 
         showMessage("Загружаем фотографию...");
 
@@ -250,7 +270,6 @@ async function addPlayer(){
 async function addRound(){
     try{
         const name = document.getElementById("round").value.trim();
-
         if(!name) throw new Error("Введи название тура");
 
         const result = await api(
@@ -261,18 +280,18 @@ async function addRound(){
         document.getElementById("round").value = "";
         document.getElementById("roundId").value = result.id;
 
-        showMessage("Тур создан! ID тура: " + result.id);
+        showMessage("Тур создан! ID: " + result.id);
         await loadRounds();
+        await loadMatchOptions();
     }catch(e){
         showError(e);
     }
 }
 
 async function loadRounds(){
-    const container = document.getElementById("roundList");
-
     try{
         const rounds = await api("/api/rounds");
+        const container = document.getElementById("roundList");
 
         if(!rounds.length){
             container.textContent = "Пока туров нет";
@@ -290,9 +309,8 @@ async function loadRounds(){
                 <button onclick="closeRound(${r.id})">Закрыть тур</button>
             </div>
         `).join("");
-
     }catch(e){
-        container.textContent = "Не удалось загрузить туры";
+        document.getElementById("roundList").textContent = "Не удалось загрузить туры";
     }
 }
 
@@ -312,6 +330,115 @@ async function closeRound(id){
         await api(`/api/rounds/${id}/close`, "POST");
         showMessage("Тур закрыт!");
         await loadRounds();
+    }catch(e){
+        showError(e);
+    }
+}
+
+async function loadMatchOptions(){
+    try{
+        const rounds = await api("/api/rounds");
+        const clubs = await api("/api/clubs");
+
+        document.getElementById("matchRound").innerHTML =
+            '<option value="">Выбери тур</option>' +
+            rounds.map(r =>
+                `<option value="${r.id}">${r.name}</option>`
+            ).join("");
+
+        const options =
+            '<option value="">Выбери клуб</option>' +
+            clubs.map(c =>
+                `<option value="${c.id}">${c.name}</option>`
+            ).join("");
+
+        document.getElementById("homeClub").innerHTML = options;
+        document.getElementById("awayClub").innerHTML = options;
+    }catch(e){
+        showError(e);
+    }
+}
+
+async function addMatch(){
+    try{
+        const round_id = Number(document.getElementById("matchRound").value);
+        const home_club_id = Number(document.getElementById("homeClub").value);
+        const away_club_id = Number(document.getElementById("awayClub").value);
+        const match_date = document.getElementById("matchDate").value;
+
+        if(!round_id || !home_club_id || !away_club_id){
+            throw new Error("Выбери тур и оба клуба");
+        }
+
+        if(home_club_id === away_club_id){
+            throw new Error("Выбери два разных клуба");
+        }
+
+        await api("/api/matches", "POST", {
+            round_id,
+            home_club_id,
+            away_club_id,
+            match_date: match_date || null
+        });
+
+        showMessage("Матч создан!");
+        await loadMatches();
+    }catch(e){
+        showError(e);
+    }
+}
+
+async function loadMatches(){
+    try{
+        const roundId = document.getElementById("matchRound").value;
+        const url = roundId
+            ? `/api/matches?round_id=${roundId}`
+            : "/api/matches";
+
+        const matches = await api(url);
+        const container = document.getElementById("matchList");
+
+        if(!matches.length){
+            container.innerHTML = "<p>Матчей пока нет</p>";
+            return;
+        }
+
+        container.innerHTML = matches.map(m => `
+            <div class="round">
+                <strong>${m.home_club_name || "Клуб"} — ${m.away_club_name || "Клуб"}</strong>
+                <p>Тур: ${m.round_name || m.round_id}</p>
+                <p>Дата: ${m.match_date || "Не указана"}</p>
+                <p>Счёт: ${
+                    m.home_score !== null && m.home_score !== undefined
+                    ? `${m.home_score} : ${m.away_score}`
+                    : "Ещё не сыгран"
+                }</p>
+                <input id="homeScore${m.id}" type="number" min="0" placeholder="Голы хозяев">
+                <input id="awayScore${m.id}" type="number" min="0" placeholder="Голы гостей">
+                <button onclick="saveMatchResult(${m.id})">Сохранить счёт</button>
+            </div>
+        `).join("");
+    }catch(e){
+        showError(e);
+    }
+}
+
+async function saveMatchResult(id){
+    try{
+        const home = document.getElementById("homeScore" + id).value;
+        const away = document.getElementById("awayScore" + id).value;
+
+        if(home === "" || away === ""){
+            throw new Error("Введи оба значения счёта");
+        }
+
+        await api(`/api/matches/${id}/result`, "POST", {
+            home_score: Number(home),
+            away_score: Number(away)
+        });
+
+        showMessage("Результат сохранён!");
+        await loadMatches();
     }catch(e){
         showError(e);
     }
@@ -340,12 +467,12 @@ function showMessage(message){
 }
 
 function showError(e){
-    document.getElementById("resultMessage").textContent =
-        "Ошибка: " + e.message;
+    document.getElementById("resultMessage").textContent = "Ошибка: " + e.message;
 }
 
 loadClubs();
 loadRounds();
+loadMatchOptions();
 </script>
 
 </body>
