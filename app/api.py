@@ -8,10 +8,7 @@ import time
 import aiosqlite
 
 from aiogram import Bot
-from fastapi import (
-    APIRouter, HTTPException, UploadFile, File,
-    Header, Depends
-)
+from fastapi import APIRouter, HTTPException, UploadFile, File, Header, Depends
 from pydantic import BaseModel
 
 DB_PATH = "bandyx.db"
@@ -39,6 +36,7 @@ def set_bot(value: Bot):
 def verify_admin(x_admin_secret: str | None = Header(default=None)):
     if not ADMIN_SECRET:
         raise HTTPException(503, "Пароль администратора не настроен")
+
     if not x_admin_secret or not hmac.compare_digest(
         x_admin_secret, ADMIN_SECRET
     ):
@@ -56,9 +54,10 @@ def verify_telegram(init_data: str | None):
         data = dict(urllib.parse.parse_qsl(
             init_data, keep_blank_values=True
         ))
-        received_hash = data.pop("hash")
 
+        received_hash = data.pop("hash")
         auth_date = int(data.get("auth_date", "0"))
+
         if time.time() - auth_date > 86400 or auth_date > time.time() + 60:
             raise ValueError("Срок авторизации истёк")
 
@@ -147,7 +146,9 @@ async def health():
 async def get_clubs():
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT * FROM clubs ORDER BY name")
+        cursor = await db.execute(
+            "SELECT * FROM clubs ORDER BY name"
+        )
         return [dict(row) for row in await cursor.fetchall()]
 
 
@@ -159,11 +160,13 @@ async def add_club(
     async with aiosqlite.connect(DB_PATH) as db:
         try:
             await db.execute(
-                "INSERT INTO clubs (name) VALUES (?)", (data.name,)
+                "INSERT INTO clubs (name) VALUES (?)",
+                (data.name,)
             )
             await db.commit()
         except aiosqlite.IntegrityError:
             raise HTTPException(400, "Клуб уже существует")
+
     return {"ok": True}
 
 
@@ -215,11 +218,16 @@ async def add_player(
             VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
-                data.first_name, data.last_name, data.position,
-                data.price, data.club_id, data.photo
+                data.first_name,
+                data.last_name,
+                data.position,
+                data.price,
+                data.club_id,
+                data.photo
             )
         )
         await db.commit()
+
         return {"ok": True, "id": cursor.lastrowid}
 
 
@@ -229,10 +237,12 @@ async def upload_photo(
     _: None = Depends(verify_admin)
 ):
     os.makedirs("uploads", exist_ok=True)
+
     filename = os.path.basename(file.filename or "photo.jpg")
     path = os.path.join("uploads", filename)
 
     content = await file.read()
+
     with open(path, "wb") as output:
         output.write(content)
 
@@ -246,15 +256,25 @@ async def add_round(
 ):
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "INSERT INTO rounds (name) VALUES (?)", (name,)
+            "INSERT INTO rounds (name) VALUES (?)",
+            (name,)
         )
         await db.commit()
+
         return {"ok": True, "id": cursor.lastrowid}
 
 
 @router.get("/api/rounds")
 async def get_rounds():
-    @router.post("/api/rounds/{round_id}/open")
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM rounds ORDER BY id DESC"
+        )
+        return [dict(row) for row in await cursor.fetchall()]
+
+
+@router.post("/api/rounds/{round_id}/open")
 async def open_round(
     round_id: int,
     _: None = Depends(verify_admin)
@@ -264,6 +284,7 @@ async def open_round(
             "SELECT id FROM rounds WHERE id = ?",
             (round_id,)
         )
+
         if not await cursor.fetchone():
             raise HTTPException(404, "Тур не найден")
 
@@ -290,21 +311,21 @@ async def close_round(
         await db.commit()
 
     return {"ok": True, "message": "Тур закрыт"}
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            "SELECT * FROM rounds ORDER BY id DESC"
-        )
-        return [dict(row) for row in await cursor.fetchall()]
 
 
 @router.get("/api/squad")
-async def get_squad(telegram_id: int = Depends(get_user)):
+async def get_squad(
+    telegram_id: int = Depends(get_user)
+):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
 
         cursor = await db.execute(
-            "SELECT id, name FROM rounds WHERE is_open = 1 ORDER BY id DESC LIMIT 1"
+            """
+            SELECT id, name FROM rounds
+            WHERE is_open = 1
+            ORDER BY id DESC LIMIT 1
+            """
         )
         round_row = await cursor.fetchone()
 
@@ -336,16 +357,24 @@ async def save_squad(
     telegram_id: int = Depends(get_user)
 ):
     if len(data.player_ids) != 11:
-        raise HTTPException(400, "В составе должно быть ровно 11 игроков")
+        raise HTTPException(
+            400, "В составе должно быть ровно 11 игроков"
+        )
 
     if len(set(data.player_ids)) != 11:
-        raise HTTPException(400, "Нельзя выбирать одного игрока дважды")
+        raise HTTPException(
+            400, "Нельзя выбирать одного игрока дважды"
+        )
 
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
 
         cursor = await db.execute(
-            "SELECT id FROM rounds WHERE is_open = 1 ORDER BY id DESC LIMIT 1"
+            """
+            SELECT id FROM rounds
+            WHERE is_open = 1
+            ORDER BY id DESC LIMIT 1
+            """
         )
         round_row = await cursor.fetchone()
 
@@ -353,6 +382,7 @@ async def save_squad(
             raise HTTPException(400, "Сейчас нет открытого тура")
 
         placeholders = ",".join("?" for _ in data.player_ids)
+
         cursor = await db.execute(
             f"""
             SELECT id, position, price FROM players
@@ -363,7 +393,9 @@ async def save_squad(
         players = await cursor.fetchall()
 
         if len(players) != 11:
-            raise HTTPException(400, "Некоторые игроки не найдены или недоступны")
+            raise HTTPException(
+                400, "Некоторые игроки не найдены или недоступны"
+            )
 
         counts = {position: 0 for position in POSITION_LIMITS}
         total_cost = 0
@@ -387,7 +419,10 @@ async def save_squad(
             raise HTTPException(400, "Превышен бюджет 225 000")
 
         await db.execute(
-            "DELETE FROM selections WHERE telegram_id = ? AND round_id = ?",
+            """
+            DELETE FROM selections
+            WHERE telegram_id = ? AND round_id = ?
+            """,
             (telegram_id, round_row["id"])
         )
 
@@ -428,9 +463,13 @@ async def add_stats(
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                data.round_id, data.player_id, data.goals,
-                data.assists, data.conceded,
-                data.penalties_saved, data.team_result
+                data.round_id,
+                data.player_id,
+                data.goals,
+                data.assists,
+                data.conceded,
+                data.penalties_saved,
+                data.team_result
             )
         )
         await db.commit()
