@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BANDYX — Админ-панель</title>
+<style>
+body{margin:0;background:#160d13;color:white;font-family:Arial;padding:18px}
+header{background:#6e1735;padding:18px;border-radius:12px;text-align:center}
+.card{background:#291722;border:1px solid #693047;padding:16px;border-radius:12px;margin-top:16px}
+input,select,button{width:100%;padding:12px;margin:7px 0;border-radius:8px;box-sizing:border-box}
+input,select{background:#170f15;color:white;border:1px solid #754057}
+button{background:#a52c50;color:white;border:0;font-weight:bold}
+#result{color:#ffb7cb}
+</style>
+</head>
+<body>
+<header><h1>BANDYX</h1><p>Панель администратора</p></header>
+
+<div class="card">
+<h3>Добавить клуб</h3>
+<input id="club" placeholder="Название клуба">
+<button onclick="addClub()">Добавить клуб</button>
+</div>
+
+<div class="card">
+<h3>Добавить игрока</h3>
+<input id="first" placeholder="Имя игрока">
+<input id="last" placeholder="Фамилия игрока">
+<select id="position">
+<option value="Нападающий">Нападающий</option>
+<option value="Полузащитник">Полузащитник</option>
+<option value="Защитник">Защитник</option>
+<option value="Вратарь">Вратарь</option>
+</select>
+<input id="price" type="number" placeholder="Цена (5000–35000)">
+<select id="clubSelect"><option value="">Выбери клуб</option></select>
+<button onclick="addPlayer()">Добавить игрока</button>
+</div>
+
+<div class="card">
+<h3>Создать тур</h3>
+<input id="round" placeholder="Например: Тур 1">
+<button onclick="addRound()">Создать тур</button>
+</div>
+
+<div class="card">
+<h3>Добавить статистику игрока</h3>
+<input id="roundId" type="number" placeholder="ID тура">
+<input id="playerId" type="number" placeholder="ID игрока">
+<input id="goals" type="number" placeholder="Голы" value="0">
+<input id="assists" type="number" placeholder="Передачи" value="0">
+<input id="conceded" type="number" placeholder="Пропущенные мячи" value="0">
+<input id="penalties" type="number" placeholder="Отражённые пенальти" value="0">
+<select id="result">
+<option value="win">Победа</option>
+<option value="draw">Ничья</option>
+<option value="loss">Поражение</option>
+</select>
+<button onclick="addStats()">Сохранить статистику</button>
+</div>
+
+<p id="result"></p>
+
+<script>
+async function api(url,method="GET",data=null){
+const options={method,headers:{"Content-Type":"application/json"}};
+if(data)options.body=JSON.stringify(data);
+const response=await fetch(url,options);
+const result=await response.json();
+if(!response.ok)throw new Error(result.detail||"Ошибка");
+return result;
+}
+
+async function addClub(){
+try{
+await api("/api/clubs","POST",{name:document.getElementById("club").value});
+document.getElementById("result").textContent="Клуб добавлен";
+await loadClubs();
+}catch(e){showError(e)}
+}
+
+async function loadClubs(){
+try{
+const clubs=await api("/api/clubs");
+document.getElementById("clubSelect").innerHTML=
+'<option value="">Выбери клуб</option>'+
+clubs.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
+}catch(e){}
+}
+
+async function addPlayer(){
+try{
+await api("/api/players","POST",{
+first_name:document.getElementById("first").value,
+last_name:document.getElementById("last").value,
+position:document.getElementById("position").value,
+price:Number(document.getElementById("price").value),
+club_id:Number(document.getElementById("clubSelect").value)||null
+});
+document.getElementById("result").textContent="Игрок добавлен";
+}catch(e){showError(e)}
+}
+
+async function addRound(){
+try{
+const name=document.getElementById("round").value;
+await api("/api/rounds?name="+encodeURIComponent(name),"POST");
+document.getElementById("result").textContent="Тур создан";
+}catch(e){showError(e)}
+}
+
+async function addStats(){
+try{
+await api("/api/stats","POST",{
+round_id:Number(document.getElementById("roundId").value),
+player_id:Number(document.getElementById("playerId").value),
+goals:Number(document.getElementById("goals").value),
+assists:Number(document.getElementById("assists").value),
+conceded:Number(document.getElementById("conceded").value),
+penalties_saved:Number(document.getElementById("penalties").value),
+team_result:document.getElementById("result").value
+});
+document.getElementById("result").textContent="Статистика сохранена";
+}catch(e){showError(e)}
+}
+
+function showError(e){
+document.getElementById("result").textContent="Ошибка: "+e.message;
+}
+
+loadClubs();
+</script>
+</body>
+</html>
