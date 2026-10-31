@@ -1,9 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BANDYX</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#160d13;color:white;font-family:Arial,sans-serif}
@@ -22,6 +24,7 @@ input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white
 .player small{display:block;color:#c9a8b6;margin-top:4px}
 .muted{color:#c9a8b6;font-size:13px}
 #message{color:#ffb7cb;margin-top:10px}
+#saveButton{width:100%;margin-top:14px}
 </style>
 </head>
 <body>
@@ -29,19 +32,22 @@ input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white
 <h1>BANDYX</h1>
 <p>Фэнтези по хоккею с мячом</p>
 </header>
+
 <main>
 <div class="card">
 <h2>Моя команда</h2>
 <div id="budget">Бюджет: 225 000</div>
-<p class="muted">Собери состав из 11 игроков</p>
-<div id="squad">Пока состав не выбран</div>
+<p class="muted">3 нападающих · 4 полузащитника · 3 защитника · 1 вратарь</p>
+<div id="roundInfo" class="muted">Проверяем открытый тур...</div>
+<div id="squad">Загрузка состава...</div>
+<button id="saveButton" onclick="saveSquad()">Сохранить команду</button>
 </div>
 
 <div class="tabs">
-<button onclick="showPosition('Нападающий')">Нападающие</button>
-<button onclick="showPosition('Полузащитник')">Полузащитники</button>
-<button onclick="showPosition('Защитник')">Защитники</button>
-<button onclick="showPosition('Вратарь')">Вратари</button>
+<button onclick="showPosition('forward')">Нападающие</button>
+<button onclick="showPosition('midfielder')">Полузащитники</button>
+<button onclick="showPosition('defender')">Защитники</button>
+<button onclick="showPosition('goalie')">Вратари</button>
 </div>
 
 <div class="card">
@@ -60,110 +66,259 @@ input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white
 </main>
 
 <script>
-let selectedPosition='';
-let players=[];
-let squad=[];
-const budgetLimit=225000;
-const limits={
-'Нападающий':3,
-'Полузащитник':4,
-'Защитник':3,
-'Вратарь':1
+const tg = window.Telegram?.WebApp;
+if (tg) {
+    tg.ready();
+    tg.expand();
+}
+
+let selectedPosition = '';
+let players = [];
+let squad = [];
+let currentRound = null;
+
+const budgetLimit = 225000;
+
+const limits = {
+    forward: 3,
+    midfielder: 4,
+    defender: 3,
+    goalie: 1
 };
 
-async function request(url){
-const response=await fetch(url);
-if(!response.ok) throw new Error('Ошибка загрузки');
-return response.json();
+const positionNames = {
+    forward: 'Нападающий',
+    midfielder: 'Полузащитник',
+    defender: 'Защитник',
+    goalie: 'Вратарь'
+};
+
+async function request(url, method = 'GET', data = null, auth = false) {
+    const headers = {};
+
+    if (data !== null) {
+        headers['Content-Type'] = 'application/json';
+    }
+
+    if (auth) {
+        const initData = tg?.initData;
+        if (!initData) {
+            throw new Error('Открой приложение через Telegram');
+        }
+        headers['X-Telegram-Init-Data'] = initData;
+    }
+
+    const response = await fetch(url, {
+        method,
+        headers,
+        body: data !== null ? JSON.stringify(data) : null
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+        throw new Error(result.detail || 'Ошибка запроса');
+    }
+
+    return result;
 }
 
-async function loadClubs(){
-try{
-const clubs=await request('/api/clubs');
-document.getElementById('clubFilter').innerHTML=
-'<option value="">Все клубы</option>'+
-clubs.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
-}catch(e){}
+async function loadClubs() {
+    try {
+        const clubs = await request('/api/clubs');
+        document.getElementById('clubFilter').innerHTML =
+            '<option value="">Все клубы</option>' +
+            clubs.map(c =>
+                `<option value="${c.id}">${c.name}</option>`
+            ).join('');
+    } catch (e) {
+        console.error(e);
+    }
 }
 
-async function loadPlayers(){
-const club=document.getElementById('clubFilter').value;
-const query=new URLSearchParams();
-if(selectedPosition)query.set('position',selectedPosition);
-if(club)query.set('club_id',club);
-try{
-players=await request('/api/players?'+query.toString());
-renderPlayers();
-}catch(e){
-document.getElementById('players').textContent='Не удалось загрузить игроков';
-}
+async function loadPlayers() {
+    const club = document.getElementById('clubFilter').value;
+    const query = new URLSearchParams();
+
+    if (selectedPosition) query.set('position', selectedPosition);
+    if (club) query.set('club_id', club);
+
+    try {
+        players = await request('/api/players?' + query.toString());
+        renderPlayers();
+    } catch (e) {
+        document.getElementById('players').textContent =
+            'Не удалось загрузить игроков';
+    }
 }
 
-function showPosition(position){
-selectedPosition=position;
-document.getElementById('positionTitle').textContent=position;
-loadPlayers();
+async function loadSquad() {
+    try {
+        const result = await request('/api/squad', 'GET', null, true);
+
+        currentRound = result.round;
+
+        if (!currentRound) {
+            document.getElementById('roundInfo').textContent =
+                result.message || 'Нет открытого тура';
+            squad = [];
+            renderSquad();
+            return;
+        }
+
+        document.getElementById('roundInfo').textContent =
+            'Текущий тур: ' + currentRound.name;
+
+        const allPlayers = await request('/api/players');
+        squad = result.player_ids
+            .map(id => allPlayers.find(p => p.id === id))
+            .filter(Boolean);
+
+        renderSquad();
+    } catch (e) {
+        document.getElementById('roundInfo').textContent =
+            'Не удалось загрузить состав: ' + e.message;
+        squad = [];
+        renderSquad();
+    }
 }
 
-function renderPlayers(){
-const container=document.getElementById('players');
-if(!players.length){
-container.textContent='Пока игроков нет. Они появятся после добавления администратором.';
-return;
-}
-container.innerHTML=players.map(p=>`
-<div class="player">
-<div>${p.first_name} ${p.last_name}
-<small>${p.club_name||'Клуб не указан'} · ${p.price.toLocaleString('ru-RU')}</small>
-</div>
-<button onclick="addPlayer(${p.id})">Добавить</button>
-</div>`).join('');
+function showPosition(position) {
+    selectedPosition = position;
+    document.getElementById('positionTitle').textContent =
+        positionNames[position];
+    loadPlayers();
 }
 
-function addPlayer(id){
-const p=players.find(x=>x.id===id);
-if(!p)return;
-const count=squad.filter(x=>x.position===p.position).length;
-if(count>=limits[p.position]){
-message('Для этой позиции уже набрано нужное количество игроков');
-return;
-}
-if(squad.some(x=>x.id===id)){
-message('Этот игрок уже выбран');
-return;
-}
-if(squad.reduce((s,x)=>s+x.price,0)+p.price>budgetLimit){
-message('Не хватает бюджета');
-return;
-}
-squad.push(p);
-renderSquad();
-message('Игрок добавлен');
+function renderPlayers() {
+    const container = document.getElementById('players');
+
+    if (!players.length) {
+        container.textContent =
+            'Пока игроков нет. Добавь их через админ-панель.';
+        return;
+    }
+
+    container.innerHTML = players.map(p => {
+        const alreadySelected = squad.some(x => x.id === p.id);
+
+        return `
+        <div class="player">
+            <div>
+                ${p.first_name} ${p.last_name}
+                <small>${p.club_name || 'Клуб не указан'} · ${p.price.toLocaleString('ru-RU')}</small>
+            </div>
+            <button
+                onclick="addPlayer(${p.id})"
+                ${alreadySelected ? 'disabled' : ''}>
+                ${alreadySelected ? 'Выбран' : 'Добавить'}
+            </button>
+        </div>`;
+    }).join('');
 }
 
-function removePlayer(id){
-squad=squad.filter(p=>p.id!==id);
-renderSquad();
+function addPlayer(id) {
+    const p = players.find(x => x.id === id);
+    if (!p) return;
+
+    const count = squad.filter(x => x.position === p.position).length;
+
+    if (count >= limits[p.position]) {
+        showMessage('Для этой позиции уже набрано нужное количество игроков');
+        return;
+    }
+
+    if (squad.some(x => x.id === id)) {
+        showMessage('Этот игрок уже выбран');
+        return;
+    }
+
+    const cost = squad.reduce((s, x) => s + x.price, 0);
+
+    if (cost + p.price > budgetLimit) {
+        showMessage('Не хватает бюджета');
+        return;
+    }
+
+    squad.push(p);
+    renderSquad();
+    renderPlayers();
+    showMessage('Игрок добавлен');
 }
 
-function renderSquad(){
-const cost=squad.reduce((s,p)=>s+p.price,0);
-document.getElementById('budget').textContent=
-`Потрачено: ${cost.toLocaleString('ru-RU')} / 225 000`;
-document.getElementById('squad').innerHTML=
-squad.length? squad.map(p=>`
-<div class="player">
-<span>${p.first_name} ${p.last_name}</span>
-<button onclick="removePlayer(${p.id})">Убрать</button>
-</div>`).join(''):'Пока состав не выбран';
+function removePlayer(id) {
+    squad = squad.filter(p => p.id !== id);
+    renderSquad();
+    renderPlayers();
 }
 
-function message(text){
-document.getElementById('message').textContent=text;
+function renderSquad() {
+    const cost = squad.reduce((s, p) => s + p.price, 0);
+
+    document.getElementById('budget').textContent =
+        `Потрачено: ${cost.toLocaleString('ru-RU')} / 225 000`;
+
+    const container = document.getElementById('squad');
+
+    if (!squad.length) {
+        container.textContent = 'Пока состав не выбран';
+        return;
+    }
+
+    container.innerHTML = Object.keys(limits).map(position => {
+        const selected = squad.filter(p => p.position === position);
+
+        return `
+        <div style="margin-top:12px">
+            <strong>${positionNames[position]} (${selected.length}/${limits[position]})</strong>
+            ${selected.map(p => `
+                <div class="player">
+                    <span>${p.first_name} ${p.last_name}</span>
+                    <button onclick="removePlayer(${p.id})">Убрать</button>
+                </div>
+            `).join('')}
+        </div>`;
+    }).join('');
 }
 
-loadClubs();
-loadPlayers();
+async function saveSquad() {
+    if (!currentRound) {
+        showMessage('Пока нет открытого тура. Обратись к администратору.');
+        return;
+    }
+
+    if (squad.length !== 11) {
+        showMessage('Для сохранения нужно выбрать ровно 11 игроков');
+        return;
+    }
+
+    try {
+        const result = await request(
+            '/api/squad',
+            'POST',
+            {player_ids: squad.map(p => p.id)},
+            true
+        );
+
+        showMessage(
+            `Команда сохранена! Потрачено: ${result.total_cost.toLocaleString('ru-RU')}`
+        );
+    } catch (e) {
+        showMessage(e.message);
+    }
+}
+
+function showMessage(text) {
+    document.getElementById('message').textContent = text;
+}
+
+async function init() {
+    await loadClubs();
+    await loadPlayers();
+    await loadSquad();
+}
+
+init();
 </script>
 </body>
 </html>
