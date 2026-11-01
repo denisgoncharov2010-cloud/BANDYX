@@ -464,7 +464,7 @@ async def add_round(name: str, _: None = Depends(verify_admin)):
     try:
         result = supabase.table("rounds").insert({
             "name": name,
-            "is_open": 0
+            "is_open": False
         }).execute()
 
         return {"ok": True, "id": result.data[0]["id"]}
@@ -494,11 +494,11 @@ async def open_round(round_id: int, _: None = Depends(verify_admin)):
         if not found.data:
             raise HTTPException(404, "Тур не найден")
 
-        supabase.table("rounds").update({"is_open": 0}).neq(
+        supabase.table("rounds").update({"is_open": False}).neq(
             "id", round_id
         ).execute()
 
-        supabase.table("rounds").update({"is_open": 1}).eq(
+        supabase.table("rounds").update({"is_open": True}).eq(
             "id", round_id
         ).execute()
 
@@ -514,7 +514,7 @@ async def open_round(round_id: int, _: None = Depends(verify_admin)):
 async def close_round(round_id: int, _: None = Depends(verify_admin)):
     try:
         result = supabase.table("rounds").update(
-            {"is_open": 0}
+            {"is_open": False}
         ).eq("id", round_id).execute()
 
         if not result.data:
@@ -730,7 +730,7 @@ async def get_squad(telegram_id: int = Depends(get_user)):
     try:
         result = supabase.table("rounds").select(
             "id,name"
-        ).eq("is_open", 1).order(
+        ).eq("is_open", True).order(
             "id", desc=True
         ).limit(1).execute()
 
@@ -771,7 +771,7 @@ async def save_squad(
 
     try:
         result = supabase.table("rounds").select("id").eq(
-            "is_open", 1
+            "is_open", True
         ).order("id", desc=True).limit(1).execute()
 
         if not result.data:
