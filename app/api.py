@@ -464,12 +464,13 @@ async def add_round(name: str, _: None = Depends(verify_admin)):
     try:
         result = supabase.table("rounds").insert({
             "name": name,
-            "is_open": False
+            "is_open": 0
         }).execute()
 
         return {"ok": True, "id": result.data[0]["id"]}
 
-    except Exception:
+    except Exception as e:
+        print("ADD ROUND ERROR:", repr(e), flush=True)
         raise HTTPException(500, "Не удалось создать тур")
 
 
