@@ -789,4 +789,242 @@ async def user_ratings(round_id: int | None = None):
 
         return result
     except Exception:
-        raise HTTPException(500, "Не удалось загрузить рейтинг пользователей")
+        raise HTTPException(500, "Не удалось загрузить рейтинг пользователей") # ДОПОЛНИТЕЛЬНОЕ УПРАВЛЕНИЕ BANDYX
+
+class ClubUpdateData(BaseModel):
+    name: str | None = None
+    logo: str | None = None
+
+
+class PlayerUpdateData(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    position: str | None = None
+    price: int | None = None
+    club_id: int | None = None
+    photo: str | None = None
+    nationality: str | None = None
+    active: int | None = None
+
+
+class RoundUpdateData(BaseModel):
+    name: str
+
+
+class MatchUpdateData(BaseModel):
+    round_id: int | None = None
+    home_club_id: int | None = None
+    away_club_id: int | None = None
+    match_date: str | None = None
+
+
+def rpc_delete(function_name, parameter_name, item_id):
+    try:
+        supabase.rpc(
+            function_name,
+            {parameter_name: item_id}
+        ).execute()
+
+        return {"ok": True}
+
+    except Exception:
+        raise HTTPException(
+            500,
+            "Удаление не выполнено. Проверьте SQL-функции Supabase и наличие записи"
+        )
+
+
+# РЕДАКТИРОВАНИЕ КЛУБА
+
+@router.patch("/api/clubs/{club_id}")
+async def edit_club(
+    club_id: int,
+    data: ClubUpdateData,
+    _: None = Depends(verify_admin)
+):
+    values = data.model_dump(exclude_unset=True)
+
+    if not values:
+        raise HTTPException(400, "Нет данных для изменения")
+
+    try:
+        result = supabase.table("clubs").update(
+            values
+        ).eq("id", club_id).execute()
+
+        if not result.data:
+            raise HTTPException(404, "Клуб не найден")
+
+        return {"ok": True}
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(500, "Не удалось изменить клуб")
+
+
+# УДАЛЕНИЕ КЛУБА
+
+@router.delete("/api/clubs/{club_id}")
+async def delete_club(
+    club_id: int,
+    _: None = Depends(verify_admin)
+):
+    return rpc_delete(
+        "bandyx_delete_club",
+        "p_club_id",
+        club_id
+    )
+
+
+# РЕДАКТИРОВАНИЕ ИГРОКА
+
+@router.patch("/api/players/{player_id}")
+async def edit_player(
+    player_id: int,
+    data: PlayerUpdateData,
+    _: None = Depends(verify_admin)
+):
+    values = data.model_dump(exclude_unset=True)
+
+    if not values:
+        raise HTTPException(400, "Нет данных для изменения")
+
+    if (
+        values.get("position") is not None
+        and values["position"] not in POSITION_LIMITS
+    ):
+        raise HTTPException(400, "Неверная позиция")
+
+    if (
+        values.get("price") is not None
+        and not 5000 <= values["price"] <= 35000
+    ):
+        raise HTTPException(
+            400,
+            "Цена должна быть от 5000 до 35000"
+        )
+
+    try:
+        result = supabase.table("players").update(
+            values
+        ).eq("id", player_id).execute()
+
+        if not result.data:
+            raise HTTPException(404, "Игрок не найден")
+
+        return {"ok": True}
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(500, "Не удалось изменить игрока")
+
+
+# УДАЛЕНИЕ ИГРОКА
+
+@router.delete("/api/players/{player_id}")
+async def delete_player(
+    player_id: int,
+    _: None = Depends(verify_admin)
+):
+    return rpc_delete(
+        "bandyx_delete_player",
+        "p_player_id",
+        player_id
+    )
+
+
+# РЕДАКТИРОВАНИЕ ТУРА
+
+@router.patch("/api/rounds/{round_id}")
+async def edit_round(
+    round_id: int,
+    data: RoundUpdateData,
+    _: None = Depends(verify_admin)
+):
+    try:
+        result = supabase.table("rounds").update(
+            {"name": data.name}
+        ).eq("id", round_id).execute()
+
+        if not result.data:
+            raise HTTPException(404, "Тур не найден")
+
+        return {"ok": True}
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(500, "Не удалось изменить тур")
+
+
+# УДАЛЕНИЕ ТУРА
+
+@router.delete("/api/rounds/{round_id}")
+async def delete_round(
+    round_id: int,
+    _: None = Depends(verify_admin)
+):
+    return rpc_delete(
+        "bandyx_delete_round",
+        "p_round_id",
+        round_id
+    )
+
+
+# РЕДАКТИРОВАНИЕ МАТЧА
+
+@router.patch("/api/matches/{match_id}")
+async def edit_match(
+    match_id: int,
+    data: MatchUpdateData,
+    _: None = Depends(verify_admin)
+):
+    values = data.model_dump(exclude_unset=True)
+
+    if not values:
+        raise HTTPException(400, "Нет данных для изменения")
+
+    if (
+        values.get("home_club_id")
+        and values.get("away_club_id")
+        and values["home_club_id"] == values["away_club_id"]
+    ):
+        raise HTTPException(
+            400,
+            "Команды матча должны отличаться"
+        )
+
+    try:
+        result = supabase.table("matches").update(
+            values
+        ).eq("id", match_id).execute()
+
+        if not result.data:
+            raise HTTPException(404, "Матч не найден")
+
+        return {"ok": True}
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(500, "Не удалось изменить матч")
+
+
+# УДАЛЕНИЕ МАТЧА
+
+@router.delete("/api/matches/{match_id}")
+async def delete_match(
+    match_id: int,
+    _: None = Depends(verify_admin)
+):
+    return rpc_delete(
+        "bandyx_delete_match",
+        "p_match_id",
+        match_id
+    )
