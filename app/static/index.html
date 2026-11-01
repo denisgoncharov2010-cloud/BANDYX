@@ -172,6 +172,7 @@ const headers={};
 if(data!==null)headers['Content-Type']='application/json';
 if(auth){
 const initData=tg?.initData;
+  console.log('TELEGRAM INIT DATA:', initData ? 'ЕСТЬ' : 'НЕТ');
 if(!initData)throw new Error('Открой приложение через Telegram');
 headers['X-Telegram-Init-Data']=initData;
 }
