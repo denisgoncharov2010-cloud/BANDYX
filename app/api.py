@@ -11,10 +11,6 @@ from aiogram import Bot
 from fastapi import APIRouter, HTTPException, UploadFile, File, Header, Depends
 from pydantic import BaseModel
 
-# ============================================================
-# НАСТРОЙКИ
-# ============================================================
-
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 ADMIN_SECRET = os.getenv("ADMIN_SECRET", "")
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
@@ -42,10 +38,6 @@ def set_bot(value: Bot):
     global bot
     bot = value
 
-
-# ============================================================
-# АВТОРИЗАЦИЯ
-# ============================================================
 
 def verify_admin(x_admin_secret: str | None = Header(default=None)):
     if not ADMIN_SECRET:
@@ -122,10 +114,6 @@ async def get_user(
     return telegram_id
 
 
-# ============================================================
-# МОДЕЛИ ДАННЫХ
-# ============================================================
-
 class ClubData(BaseModel):
     name: str
     logo: str | None = None
@@ -133,11 +121,6 @@ class ClubData(BaseModel):
 
 class ClubLogoData(BaseModel):
     logo: str
-
-
-class ClubUpdateData(BaseModel):
-    name: str | None = None
-    logo: str | None = None
 
 
 class PlayerData(BaseModel):
@@ -148,17 +131,6 @@ class PlayerData(BaseModel):
     club_id: int | None = None
     photo: str | None = None
     nationality: str | None = None
-
-
-class PlayerUpdateData(BaseModel):
-    first_name: str | None = None
-    last_name: str | None = None
-    position: str | None = None
-    price: int | None = None
-    club_id: int | None = None
-    photo: str | None = None
-    nationality: str | None = None
-    active: int | None = None
 
 
 class StatsData(BaseModel):
@@ -187,44 +159,23 @@ class MatchResultData(BaseModel):
     away_score: int
 
 
-class RoundUpdateData(BaseModel):
-    name: str
-
-
-class MatchUpdateData(BaseModel):
-    round_id: int | None = None
-    home_club_id: int | None = None
-    away_club_id: int | None = None
-    match_date: str | None = None
-
-
-# ============================================================
 # ПРОВЕРКА СЕРВЕРА
-# ============================================================
 
 @router.get("/api/health")
 async def health():
     try:
         supabase.table("rounds").select("id").limit(1).execute()
-        return {
-            "status": "ok",
-            "app": "BANDYX",
-            "database": "supabase"
-        }
+        return {"status": "ok", "app": "BANDYX", "database": "supabase"}
     except Exception:
         raise HTTPException(503, "Нет соединения с Supabase")
 
 
-# ============================================================
 # КЛУБЫ
-# ============================================================
 
 @router.get("/api/clubs")
 async def get_clubs():
     try:
-        return supabase.table("clubs").select("*").order(
-            "name"
-        ).execute().data
+        return supabase.table("clubs").select("*").order("name").execute().data
     except Exception:
         raise HTTPException(500, "Не удалось загрузить клубы")
 
@@ -236,9 +187,7 @@ async def add_club(data: ClubData, _: None = Depends(verify_admin)):
             "name": data.name,
             "logo": data.logo
         }).execute()
-
         return {"ok": True, "id": result.data[0]["id"]}
-
     except Exception as e:
         if "duplicate" in str(e).lower() or "unique" in str(e).lower():
             raise HTTPException(400, "Клуб уже существует")
@@ -260,51 +209,13 @@ async def update_club_logo(
             raise HTTPException(404, "Клуб не найден")
 
         return {"ok": True}
-
     except HTTPException:
         raise
     except Exception:
         raise HTTPException(500, "Не удалось обновить эмблему")
 
 
-@router.patch("/api/clubs/{club_id}")
-async def edit_club(
-    club_id: int,
-    data: ClubUpdateData,
-    _: None = Depends(verify_admin)
-):
-    values = data.model_dump(exclude_unset=True)
-
-    if not values:
-        raise HTTPException(400, "Нет данных для изменения")
-
-    try:
-        result = supabase.table("clubs").update(
-            values
-        ).eq("id", club_id).execute()
-
-        if not result.data:
-            raise HTTPException(404, "Клуб не найден")
-
-        return {"ok": True}
-
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(500, "Не удалось изменить клуб")
-
-
-@router.delete("/api/clubs/{club_id}")
-async def delete_club(
-    club_id: int,
-    _: None = Depends(verify_admin)
-):
-    return rpc_delete("bandyx_delete_club", "p_club_id", club_id)
-
-
-# ============================================================
 # ИГРОКИ
-# ============================================================
 
 @router.get("/api/players")
 async def get_players(
@@ -317,22 +228,18 @@ async def get_players(
         if position:
             query = query.eq("position", position)
 
-        if club_id is not None:
+        if club_id:
             query = query.eq("club_id", club_id)
 
         players = query.order("last_name").execute().data
 
-        clubs_result = supabase.table("clubs").select(
-            "id,name"
-        ).execute()
-
+        clubs_result = supabase.table("clubs").select("id,name").execute()
         clubs = {c["id"]: c["name"] for c in clubs_result.data}
 
         for player in players:
             player["club_name"] = clubs.get(player.get("club_id"))
 
         return players
-
     except Exception:
         raise HTTPException(500, "Не удалось загрузить игроков")
 
@@ -357,61 +264,11 @@ async def add_player(data: PlayerData, _: None = Depends(verify_admin)):
         }).execute()
 
         return {"ok": True, "id": result.data[0]["id"]}
-
     except Exception:
         raise HTTPException(500, "Не удалось добавить игрока")
 
 
-@router.patch("/api/players/{player_id}")
-async def edit_player(
-    player_id: int,
-    data: PlayerUpdateData,
-    _: None = Depends(verify_admin)
-):
-    values = data.model_dump(exclude_unset=True)
-
-    if not values:
-        raise HTTPException(400, "Нет данных для изменения")
-
-    if (
-        values.get("position") is not None
-        and values["position"] not in POSITION_LIMITS
-    ):
-        raise HTTPException(400, "Неверная позиция")
-
-    if (
-        values.get("price") is not None
-        and not 5000 <= values["price"] <= 35000
-    ):
-        raise HTTPException(400, "Цена должна быть от 5000 до 35000")
-
-    try:
-        result = supabase.table("players").update(
-            values
-        ).eq("id", player_id).execute()
-
-        if not result.data:
-            raise HTTPException(404, "Игрок не найден")
-
-        return {"ok": True}
-
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(500, "Не удалось изменить игрока")
-
-
-@router.delete("/api/players/{player_id}")
-async def delete_player(
-    player_id: int,
-    _: None = Depends(verify_admin)
-):
-    return rpc_delete("bandyx_delete_player", "p_player_id", player_id)
-
-
-# ============================================================
 # ЗАГРУЗКА ФОТО И ЭМБЛЕМ
-# ============================================================
 
 @router.post("/api/upload")
 async def upload_photo(
@@ -430,16 +287,12 @@ async def upload_photo(
     content = await file.read()
 
     if len(content) > 10 * 1024 * 1024:
-        raise HTTPException(
-            400,
-            "Размер изображения не должен превышать 10 МБ"
-        )
+        raise HTTPException(400, "Размер изображения не должен превышать 10 МБ")
 
     filename = f"{uuid.uuid4()}{allowed[file.content_type]}"
 
     try:
         storage = supabase.storage.from_("bandyx-images")
-
         storage.upload(
             filename,
             content,
@@ -450,14 +303,9 @@ async def upload_photo(
         )
 
         return {"url": storage.get_public_url(filename)}
-
     except Exception:
         raise HTTPException(500, "Не удалось загрузить изображение")
-
-
-# ============================================================
-# ТУРЫ
-# ============================================================
+        # ТУРЫ
 
 @router.post("/api/rounds")
 async def add_round(name: str, _: None = Depends(verify_admin)):
@@ -468,9 +316,7 @@ async def add_round(name: str, _: None = Depends(verify_admin)):
         }).execute()
 
         return {"ok": True, "id": result.data[0]["id"]}
-
-    except Exception as e:
-        print("ADD ROUND ERROR:", repr(e), flush=True)
+    except Exception:
         raise HTTPException(500, "Не удалось создать тур")
 
 
@@ -480,7 +326,6 @@ async def get_rounds():
         return supabase.table("rounds").select("*").order(
             "id", desc=True
         ).execute().data
-
     except Exception:
         raise HTTPException(500, "Не удалось загрузить туры")
 
@@ -504,31 +349,6 @@ async def open_round(round_id: int, _: None = Depends(verify_admin)):
         ).execute()
 
         return {"ok": True, "message": "Тур открыт"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        print("OPEN ROUND ERROR:", repr(e), flush=True)
-        raise HTTPException(500, "Не удалось открыть тур")
-async def open_round(round_id: int, _: None = Depends(verify_admin)):
-    try:
-        found = supabase.table("rounds").select("id").eq(
-            "id", round_id
-        ).execute()
-
-        if not found.data:
-            raise HTTPException(404, "Тур не найден")
-
-        supabase.table("rounds").update({"is_open": False}).neq(
-            "id", round_id
-        ).execute()
-
-        supabase.table("rounds").update({"is_open": True}).eq(
-            "id", round_id
-        ).execute()
-
-        return {"ok": True, "message": "Тур открыт"}
-
     except HTTPException:
         raise
     except Exception:
@@ -539,56 +359,20 @@ async def open_round(round_id: int, _: None = Depends(verify_admin)):
 async def close_round(round_id: int, _: None = Depends(verify_admin)):
     try:
         result = supabase.table("rounds").update(
-            {"is_open": False}
+            {"is_open": 0}
         ).eq("id", round_id).execute()
 
         if not result.data:
             raise HTTPException(404, "Тур не найден")
 
         return {"ok": True, "message": "Тур закрыт"}
-
     except HTTPException:
         raise
     except Exception:
         raise HTTPException(500, "Не удалось закрыть тур")
 
 
-@router.patch("/api/rounds/{round_id}")
-async def edit_round(
-    round_id: int,
-    data: RoundUpdateData,
-    _: None = Depends(verify_admin)
-):
-    if not data.name.strip():
-        raise HTTPException(400, "Название тура не может быть пустым")
-
-    try:
-        result = supabase.table("rounds").update(
-            {"name": data.name.strip()}
-        ).eq("id", round_id).execute()
-
-        if not result.data:
-            raise HTTPException(404, "Тур не найден")
-
-        return {"ok": True}
-
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(500, "Не удалось изменить тур")
-
-
-@router.delete("/api/rounds/{round_id}")
-async def delete_round(
-    round_id: int,
-    _: None = Depends(verify_admin)
-):
-    return rpc_delete("bandyx_delete_round", "p_round_id", round_id)
-
-
-# ============================================================
 # МАТЧИ
-# ============================================================
 
 @router.get("/api/matches")
 async def get_matches(round_id: int | None = None):
@@ -603,10 +387,7 @@ async def get_matches(round_id: int | None = None):
         clubs_result = supabase.table("clubs").select("*").execute()
         clubs = {c["id"]: c for c in clubs_result.data}
 
-        rounds_result = supabase.table("rounds").select(
-            "id,name"
-        ).execute()
-
+        rounds_result = supabase.table("rounds").select("id,name").execute()
         rounds = {r["id"]: r["name"] for r in rounds_result.data}
 
         for match in matches:
@@ -620,7 +401,6 @@ async def get_matches(round_id: int | None = None):
             match["away_club_logo"] = away.get("logo")
 
         return matches
-
     except Exception:
         raise HTTPException(500, "Не удалось загрузить матчи")
 
@@ -654,7 +434,6 @@ async def add_match(data: MatchData, _: None = Depends(verify_admin)):
         }).execute()
 
         return {"ok": True, "id": result.data[0]["id"]}
-
     except HTTPException:
         raise
     except Exception:
@@ -681,83 +460,24 @@ async def set_match_result(
             raise HTTPException(404, "Матч не найден")
 
         return {"ok": True}
-
     except HTTPException:
         raise
     except Exception:
         raise HTTPException(500, "Не удалось сохранить результат")
 
 
-@router.patch("/api/matches/{match_id}")
-async def edit_match(
-    match_id: int,
-    data: MatchUpdateData,
-    _: None = Depends(verify_admin)
-):
-    values = data.model_dump(exclude_unset=True)
-
-    if not values:
-        raise HTTPException(400, "Нет данных для изменения")
-
-    try:
-        current = supabase.table("matches").select(
-            "home_club_id,away_club_id"
-        ).eq("id", match_id).execute()
-
-        if not current.data:
-            raise HTTPException(404, "Матч не найден")
-
-        home_id = values.get(
-            "home_club_id",
-            current.data[0]["home_club_id"]
-        )
-
-        away_id = values.get(
-            "away_club_id",
-            current.data[0]["away_club_id"]
-        )
-
-        if home_id == away_id:
-            raise HTTPException(
-                400,
-                "Команды матча должны отличаться"
-            )
-
-        result = supabase.table("matches").update(
-            values
-        ).eq("id", match_id).execute()
-
-        if not result.data:
-            raise HTTPException(404, "Матч не найден")
-
-        return {"ok": True}
-
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(500, "Не удалось изменить матч")
-
-
-@router.delete("/api/matches/{match_id}")
-async def delete_match(
-    match_id: int,
-    _: None = Depends(verify_admin)
-):
-    return rpc_delete("bandyx_delete_match", "p_match_id", match_id)
-
-
-# ============================================================
 # СОСТАВЫ
-# ============================================================
 
 @router.get("/api/squad")
 async def get_squad(telegram_id: int = Depends(get_user)):
     try:
         result = supabase.table("rounds").select(
             "id,name"
-        ).eq("is_open", True).order(
+        ).eq("is_open", 1).order(
             "id", desc=True
         ).limit(1).execute()
+
+        print("SQUAD ROUND RESULT:", result.data, flush=True)
 
         if not result.data:
             return {
@@ -778,7 +498,6 @@ async def get_squad(telegram_id: int = Depends(get_user)):
             "round": round_row,
             "player_ids": [r["player_id"] for r in selections.data]
         }
-
     except Exception:
         raise HTTPException(500, "Не удалось загрузить состав")
 
@@ -796,7 +515,7 @@ async def save_squad(
 
     try:
         result = supabase.table("rounds").select("id").eq(
-            "is_open", True
+            "is_open", 1
         ).order("id", desc=True).limit(1).execute()
 
         if not result.data:
@@ -811,10 +530,7 @@ async def save_squad(
         ).execute().data
 
         if len(players) != 11:
-            raise HTTPException(
-                400,
-                "Некоторые игроки не найдены или недоступны"
-            )
+            raise HTTPException(400, "Некоторые игроки не найдены или недоступны")
 
         counts = {position: 0 for position in POSITION_LIMITS}
         total_cost = 0
@@ -855,16 +571,11 @@ async def save_squad(
             "saved": 11,
             "total_cost": total_cost
         }
-
     except HTTPException:
         raise
     except Exception:
         raise HTTPException(500, "Не удалось сохранить состав")
-
-
-# ============================================================
-# ПОДСЧЁТ ОЧКОВ
-# ============================================================
+        # ПОДСЧЁТ ОЧКОВ
 
 def calculate_points(player, stats):
     position = player.get("position")
@@ -901,9 +612,7 @@ def calculate_points(player, stats):
     return points
 
 
-# ============================================================
 # ВВОД СТАТИСТИКИ
-# ============================================================
 
 @router.post("/api/stats")
 async def add_stats(data: StatsData, _: None = Depends(verify_admin)):
@@ -948,16 +657,13 @@ async def add_stats(data: StatsData, _: None = Depends(verify_admin)):
         }).execute()
 
         return {"ok": True}
-
     except HTTPException:
         raise
     except Exception:
         raise HTTPException(500, "Не удалось сохранить статистику")
 
 
-# ============================================================
-# ДАННЫЕ ДЛЯ РЕЙТИНГОВ
-# ============================================================
+# ПОЛУЧЕНИЕ ДАННЫХ ДЛЯ РЕЙТИНГОВ
 
 def load_rating_data(round_id=None):
     players_result = supabase.table("players").select("*").execute()
@@ -991,9 +697,7 @@ def load_rating_data(round_id=None):
     return players, stats, selections, users
 
 
-# ============================================================
 # РЕЙТИНГ ИГРОКОВ
-# ============================================================
 
 @router.get("/api/ratings/players")
 async def player_ratings(round_id: int | None = None):
@@ -1024,23 +728,17 @@ async def player_ratings(round_id: int | None = None):
                 "rounds_played": rounds_played
             })
 
-        ratings.sort(
-            key=lambda item: item["points"],
-            reverse=True
-        )
+        ratings.sort(key=lambda item: item["points"], reverse=True)
 
         for index, item in enumerate(ratings, start=1):
             item["place"] = index
 
         return ratings
-
     except Exception:
         raise HTTPException(500, "Не удалось загрузить рейтинг игроков")
 
 
-# ============================================================
 # РЕЙТИНГ ПОЛЬЗОВАТЕЛЕЙ
-# ============================================================
 
 @router.get("/api/ratings/users")
 async def user_ratings(round_id: int | None = None):
@@ -1081,35 +779,12 @@ async def user_ratings(round_id: int | None = None):
             ratings[telegram_id]["players_count"] += 1
 
         result = list(ratings.values())
-        result.sort(
-            key=lambda item: item["points"],
-            reverse=True
-        )
+        result.sort(key=lambda item: item["points"], reverse=True)
 
         for index, item in enumerate(result, start=1):
             item["place"] = index
 
         return result
-
     except Exception:
         raise HTTPException(500, "Не удалось загрузить рейтинг пользователей")
-
-
-# ============================================================
-# УДАЛЕНИЕ ЧЕРЕЗ SUPABASE SQL RPC
-# ============================================================
-
-def rpc_delete(function_name, parameter_name, item_id):
-    try:
-        supabase.rpc(
-            function_name,
-            {parameter_name: item_id}
-        ).execute()
-
-        return {"ok": True}
-
-    except Exception:
-        raise HTTPException(
-            500,
-            "Удаление не выполнено. Проверьте SQL-функции Supabase"
-        )
+        # Конец файла api.py
