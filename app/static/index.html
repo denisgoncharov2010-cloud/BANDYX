@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -6,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BANDYX</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#160d13;color:white;font-family:Arial,sans-serif}
@@ -19,18 +17,14 @@ h2{font-size:19px;margin:0 0 12px}
 button{background:#a52c50;color:white;border:0;border-radius:10px;padding:12px 16px;font-weight:bold;cursor:pointer}
 button:disabled{opacity:.4}
 input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white;border:1px solid #754057;border-radius:8px}
-.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:15px}
-.tabs button{flex:1;min-width:90px}
+.nav,.tabs,.rating-tabs,.period-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:15px}
+.nav button,.tabs button,.rating-tabs button,.period-tabs button{flex:1}
+.nav button.active,.rating-tabs button.active,.period-tabs button.active{background:#e04c78}
 .player{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #543044;gap:10px}
 .player small{display:block;color:#c9a8b6;margin-top:4px}
 .muted{color:#c9a8b6;font-size:13px}
 #message{color:#ffb7cb;margin-top:10px}
 #saveButton{width:100%;margin-top:14px}
-.nav{display:flex;gap:8px;margin-bottom:15px}
-.nav button{flex:1}
-.nav button.active,.rating-tabs button.active,.period-tabs button.active{background:#e04c78}
-.rating-tabs,.period-tabs{display:flex;gap:7px;margin:10px 0;flex-wrap:wrap}
-.rating-tabs button,.period-tabs button{flex:1}
 .rating-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #543044}
 .place{font-size:19px;font-weight:bold;min-width:28px;text-align:center;color:#f2cbd8}
 .rating-photo{width:45px;height:45px;border-radius:50%;object-fit:cover;background:#4b2939}
@@ -45,669 +39,372 @@ input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white
 .player-name{cursor:pointer;flex:1;min-width:0}
 .player-name strong{color:#fff}
 .player-name:active{opacity:.7}
-.player-modal{
-    display:none;
-    position:fixed;
-    inset:0;
-    z-index:1000;
-    background:rgba(0,0,0,.82);
-    align-items:center;
-    justify-content:center;
-    padding:20px;
-}
+.player-modal{display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.82);align-items:center;justify-content:center;padding:20px}
 .player-modal.open{display:flex}
-.player-card{
-    position:relative;
-    width:100%;
-    max-width:350px;
-    background:#291722;
-    border:1px solid #a52c50;
-    border-radius:20px;
-    padding:22px;
-    text-align:center;
-    box-shadow:0 10px 40px rgba(0,0,0,.5);
-}
-.player-card-close{
-    position:absolute;
-    right:12px;
-    top:12px;
-    width:35px;
-    height:35px;
-    padding:0;
-    font-size:22px;
-    background:#542238;
-}
-.player-card-photo{
-    width:150px;
-    height:150px;
-    object-fit:cover;
-    border-radius:15px;
-    background:#160d13;
-    border:2px solid #a52c50;
-    margin:12px auto 16px;
-    display:block;
-}
-.player-card-no-photo{
-    width:150px;
-    height:150px;
-    border-radius:15px;
-    background:#160d13;
-    border:2px solid #a52c50;
-    margin:12px auto 16px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:55px;
-}
-.player-card h2{
-    font-size:23px;
-    margin:0 0 18px;
-}
-.player-card-info{
-    background:#1b1018;
-    border-radius:12px;
-    padding:13px;
-    margin-top:10px;
-    text-align:left;
-}
-.player-card-info span{
-    color:#c9a8b6;
-    font-size:13px;
-    display:block;
-    margin-bottom:5px;
-}
-.player-card-info strong{
-    font-size:16px;
+.player-card{position:relative;width:100%;max-width:350px;background:#291722;border:1px solid #a52c50;border-radius:20px;padding:22px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.player-card-close{position:absolute;right:12px;top:12px;width:35px;height:35px;padding:0;font-size:22px;background:#542238}
+.player-card-photo{width:150px;height:150px;object-fit:cover;border-radius:15px;background:#160d13;border:2px solid #a52c50;margin:12px auto 16px;display:block}
+.player-card-no-photo{width:150px;height:150px;border-radius:15px;background:#160d13;border:2px solid #a52c50;margin:12px auto 16px;display:flex;align-items:center;justify-content:center;font-size:55px}
+.player-card h2{font-size:23px;margin:0 0 18px}
+.player-card-info{background:#1b1018;border-radius:12px;padding:13px;margin-top:10px;text-align:left}
+.player-card-info span{color:#c9a8b6;font-size:13px;display:block;margin-bottom:5px}
+.player-card-info strong{font-size:16px}
+
+/* Тактическое поле BANDYX */
+.lineup-board{position:relative;overflow:hidden;min-height:760px;border:1px solid #a84b63;border-radius:18px;background:radial-gradient(ellipse at center,#6f142c 0%,#430817 70%,#26040d 100%);padding:18px 10px;margin-top:14px}
+.lineup-board:before{content:"";position:absolute;inset:12px;border:2px solid rgba(255,235,240,.72);border-radius:5px;pointer-events:none}
+.lineup-board:after{content:"";position:absolute;left:12px;right:12px;top:50%;border-top:2px solid rgba(255,235,240,.65);pointer-events:none}
+.center-circle{position:absolute;width:118px;height:118px;border:2px solid rgba(255,235,240,.55);border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none}
+.slot-row{position:relative;z-index:1;display:flex;justify-content:space-around;align-items:flex-start;gap:5px;margin:4px 0 34px}
+.slot-row.midfield{margin-top:90px;margin-bottom:65px}
+.slot-row.defense{margin-bottom:85px}
+.slot-row.goalie{justify-content:center;margin-bottom:8px}
+.lineup-slot{width:31%;max-width:112px;min-width:0;min-height:130px;padding:0;border:0;background:transparent;color:white;display:flex;flex-direction:column;align-items:center;gap:5px}
+.lineup-slot.mid{width:24%}
+.slot-photo{width:76px;height:78px;object-fit:contain;object-position:bottom center;filter:drop-shadow(0 3px 5px #160008)}
+.slot-empty{width:76px;height:78px;display:flex;align-items:center;justify-content:center;font-size:40px;color:#e9cbd3;background:rgba(255,255,255,.10);border:1px dashed rgba(255,230,238,.65);border-radius:12px}
+.slot-label{width:100%;min-height:48px;padding:6px 4px;background:linear-gradient(135deg,#31102c,#120b35);border:2px solid #d9b34c;border-right-color:#a52c50;border-radius:7px;font-size:11px;line-height:1.25;text-align:center;overflow-wrap:anywhere}
+.slot-points{font-size:12px;color:#f3c6d3;background:rgba(8,4,16,.28);padding:3px 8px;border-radius:0 0 6px 6px;min-width:55px}
+.selection-modal{display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.82);align-items:flex-end;justify-content:center;padding:12px}
+.selection-modal.open{display:flex}
+.selection-panel{width:100%;max-width:520px;max-height:82vh;overflow:auto;background:#24121d;border:1px solid #a52c50;border-radius:18px;padding:17px}
+.selection-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.selection-head h2{margin:0}
+.selection-player{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #543044}
+.selection-player img{width:48px;height:48px;object-fit:cover;border-radius:9px}
+.selection-player .meta{flex:1;min-width:0}
+.selection-player small{display:block;color:#c9a8b6;margin-top:4px}
+@media(max-width:380px){
+.lineup-board{min-height:700px;padding-left:5px;padding-right:5px}
+.slot-photo,.slot-empty{width:65px;height:68px}
+.slot-label{font-size:10px}
+.slot-row.midfield{margin-top:75px}
 }
 </style>
 </head>
-
 <body>
 <header>
 <h1>BANDYX</h1>
 <p>Фэнтези по хоккею с мячом</p>
 </header>
-
 <main>
-
 <div class="nav">
 <button id="teamTab" class="active" onclick="showSection('team')">Моя команда</button>
 <button id="ratingTab" onclick="showSection('ratings')">Рейтинги</button>
 </div>
-
 <div id="teamSection" class="section active">
-
 <div class="card">
 <h2>Моя команда</h2>
 <div id="budget">Бюджет: 225 000</div>
 <p class="muted">3 нападающих · 4 полузащитника · 3 защитника · 1 вратарь</p>
 <div id="roundInfo" class="muted">Проверяем открытый тур...</div>
-<div id="squad">Загрузка состава...</div>
+<div id="squad">
+<div class="muted">Нажми на место на поле, чтобы выбрать игрока</div>
+<div id="lineupBoard" class="lineup-board">
+<div class="center-circle"></div>
+<div class="slot-row forwards" id="forwardSlots"></div>
+<div class="slot-row midfield" id="midfielderSlots"></div>
+<div class="slot-row defense" id="defenderSlots"></div>
+<div class="slot-row goalie" id="goalieSlots"></div>
+</div>
+</div>
 <button id="saveButton" onclick="saveSquad()">Сохранить команду</button>
 </div>
-
-<div class="tabs">
-<button onclick="showPosition('forward')">Нападающие</button>
-<button onclick="showPosition('midfielder')">Полузащитники</button>
-<button onclick="showPosition('defender')">Защитники</button>
-<button onclick="showPosition('goalie')">Вратари</button>
 </div>
-
-<div class="card">
-<h2 id="positionTitle">Выбери позицию</h2>
-<select id="clubFilter" onchange="loadPlayers()">
-<option value="">Все клубы</option>
-</select>
-<div id="players">Загрузка игроков...</div>
-<div id="message"></div>
-</div>
-
-</div>
-
 <div id="ratingsSection" class="section">
 <div class="card">
 <h2>Рейтинги BANDYX</h2>
 <p class="muted">Соревнование всех участников фэнтези</p>
-
 <div class="rating-tabs">
 <button id="usersRatingTab" class="active" onclick="changeRating('users')">Пользователи</button>
 <button id="playersRatingTab" onclick="changeRating('players')">Игроки</button>
 </div>
-
 <div class="period-tabs">
 <button id="allTimeTab" class="active" onclick="changePeriod('all')">За всё время</button>
 <button id="roundTab" onclick="changePeriod('round')">За тур</button>
 </div>
-
 <select id="ratingRound" style="display:none" onchange="loadRatings()">
 <option value="">Выбери тур</option>
 </select>
-
-<div id="ranking">
-<div class="empty">Загрузка рейтинга...</div>
+<div id="ranking"><div class="empty">Загрузка рейтинга...</div></div>
 </div>
 </div>
-</div>
-
 </main>
 
-<!-- Окно карточки игрока -->
+<!-- Выбор клуба и игрока -->
+<div id="selectionModal" class="selection-modal" onclick="closeSelection(event)">
+<div class="selection-panel" onclick="event.stopPropagation()">
+<div class="selection-head"><h2 id="selectionTitle">Выбор игрока</h2><button onclick="closeSelection()">×</button></div>
+<p class="muted">Сначала выбери клуб, затем игрока.</p>
+<select id="selectionClub" onchange="renderSelectionPlayers()"><option value="">Все клубы</option></select>
+<div id="selectionPlayers"></div>
+</div>
+</div>
+
+<!-- Карточка игрока -->
 <div id="playerModal" class="player-modal" onclick="closePlayerCard(event)">
-    <div class="player-card" onclick="event.stopPropagation()">
-        <button class="player-card-close" onclick="closePlayerCard()">×</button>
-        <div id="playerCardContent"></div>
-    </div>
+<div class="player-card" onclick="event.stopPropagation()">
+<button class="player-card-close" onclick="closePlayerCard()">×</button>
+<div id="playerCardContent"></div>
+</div>
 </div>
 
 <script>
-const tg = window.Telegram?.WebApp;
+const tg=window.Telegram?.WebApp;
+if(tg){tg.ready();tg.expand();}
 
-if (tg) {
-    tg.ready();
-    tg.expand();
+let selectedPosition='';
+let players=[];
+let squad=[];
+let currentRound=null;
+let clubs=[];
+let activeSlotPosition='';
+let activeSlotIndex=0;
+let currentRating='users';
+let currentPeriod='all';
+
+const budgetLimit=225000;
+const limits={forward:3,midfielder:4,defender:3,goalie:1};
+const positionNames={forward:'Нападающий',midfielder:'Полузащитник',defender:'Защитник',goalie:'Вратарь'};
+
+async function request(url,method='GET',data=null,auth=false){
+const headers={};
+if(data!==null)headers['Content-Type']='application/json';
+if(auth){
+const initData=tg?.initData;
+if(!initData)throw new Error('Открой приложение через Telegram');
+headers['X-Telegram-Init-Data']=initData;
+}
+const response=await fetch(url,{method,headers,body:data!==null?JSON.stringify(data):null});
+const result=await response.json();
+if(!response.ok)throw new Error(result.detail||'Ошибка запроса');
+return result;
 }
 
-let selectedPosition = '';
-let players = [];
-let squad = [];
-let currentRound = null;
+function showSection(section){
+document.getElementById('teamSection').classList.toggle('active',section==='team');
+document.getElementById('ratingsSection').classList.toggle('active',section==='ratings');
+document.getElementById('teamTab').classList.toggle('active',section==='team');
+document.getElementById('ratingTab').classList.toggle('active',section==='ratings');
+if(section==='ratings')loadRatings();
+}
 
-let currentRating = 'users';
-let currentPeriod = 'all';
+async function loadClubs(){
+try{
+clubs=await request('/api/clubs');
+document.getElementById('selectionClub').innerHTML='<option value="">Все клубы</option>'+clubs.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+}catch(e){console.error(e);}
+}
 
-const budgetLimit = 225000;
+async function loadPlayers(){
+try{players=await request('/api/players');}
+catch(e){console.error(e);}
+}
 
-const limits = {
-    forward: 3,
-    midfielder: 4,
-    defender: 3,
-    goalie: 1
+async function loadSquad(){
+try{
+const result=await request('/api/squad','GET',null,true);
+currentRound=result.round;
+if(!currentRound){
+document.getElementById('roundInfo').textContent=result.message||'Нет открытого тура';
+squad=[];
+renderSquad();
+return;
+}
+document.getElementById('roundInfo').textContent='Текущий тур: '+currentRound.name;
+const allPlayers=await request('/api/players');
+squad=result.player_ids.map(id=>allPlayers.find(p=>p.id===id)).filter(Boolean);
+renderSquad();
+}catch(e){
+document.getElementById('roundInfo').textContent='Не удалось загрузить состав: '+e.message;
+squad=[];
+renderSquad();
+}
+}
+
+function renderSquad(){
+const cost=squad.reduce((sum,p)=>sum+Number(p.price||0),0);
+document.getElementById('budget').textContent=`Потрачено: ${cost.toLocaleString('ru-RU')} / 225 000`;
+const rows=[
+['forward','forwardSlots'],
+['midfielder','midfielderSlots'],
+['defender','defenderSlots'],
+['goalie','goalieSlots']
+];
+rows.forEach(([position,containerId])=>{
+const container=document.getElementById(containerId);
+const selected=squad.filter(p=>p.position===position);
+container.innerHTML=Array.from({length:limits[position]},(_,index)=>{
+const player=selected[index];
+const label=player?`${player.first_name} ${player.last_name}`:`${positionNames[position]} · выбрать`;
+const photo=player&&player.photo?`<img class="slot-photo" src="${escapeHtml(player.photo)}" alt="" onerror="this.outerHTML='<div class=&quot;slot-empty&quot;>🏑</div>'">`:`<div class="slot-empty">${player?'🏑':'+'}</div>`;
+const points=player?`${Number(player.points||0).toLocaleString('ru-RU')} оч.`:'—';
+return `<button class="lineup-slot ${position==='midfielder'?'mid':''}" onclick="openSelection('${position}',${index})">${photo}<span class="slot-label">${label}</span><span class="slot-points">${points}</span></button>`;
+}).join('');
+});
+}
+
+function openSelection(position,index){
+activeSlotPosition=position;
+activeSlotIndex=index;
+document.getElementById('selectionTitle').textContent='Выбор: '+positionNames[position];
+document.getElementById('selectionClub').value='';
+document.getElementById('selectionModal').classList.add('open');
+renderSelectionPlayers();
+}
+
+function closeSelection(event){
+if(event&&event.target!==document.getElementById('selectionModal'))return;
+document.getElementById('selectionModal').classList.remove('open');
+}
+
+async function renderSelectionPlayers(){
+const clubId=document.getElementById('selectionClub').value;
+const container=document.getElementById('selectionPlayers');
+container.innerHTML='<div class="empty">Загрузка игроков...</div>';
+try{
+const query=new URLSearchParams({position:activeSlotPosition});
+if(clubId)query.set('club_id',clubId);
+const available=await request('/api/players?'+query.toString());
+const eligible=available.filter(p=>!squad.some(existing=>Number(existing.id)===Number(p.id)));
+if(!eligible.length){container.innerHTML='<div class="empty">Нет свободных игроков на эту позицию</div>';return;}
+container.innerHTML=eligible.map(p=>`<div class="selection-player">${p.photo?`<img src="${escapeHtml(p.photo)}" alt="">`:'<div class="rating-photo">🏑</div>'}<div class="meta"><strong>${escapeHtml(p.first_name)} ${escapeHtml(p.last_name)}</strong><small>${escapeHtml(p.club_name||'Клуб не указан')} · ${Number(p.price).toLocaleString('ru-RU')}</small></div><button onclick="chooseSlotPlayer(${p.id})">Выбрать</button></div>`).join('');
+}catch(e){container.innerHTML=`<div class="empty">Не удалось загрузить игроков: ${escapeHtml(e.message)}</div>`;}
+}
+
+async function chooseSlotPlayer(id){
+try{
+const all=await request('/api/players');
+const player=all.find(p=>Number(p.id)===Number(id));
+if(!player||player.position!==activeSlotPosition)return;
+const samePosition=squad.filter(p=>p.position===activeSlotPosition);
+const old=samePosition[activeSlotIndex];
+const next=squad.filter(p=>!old||Number(p.id)!==Number(old.id));
+const total=next.reduce((sum,p)=>sum+Number(p.price||0),0)+Number(player.price||0);
+if(total>budgetLimit){alert('Не хватает бюджета для этого игрока');return;}
+next.push(player);
+squad=next;
+renderSquad();
+closeSelection();
+}catch(e){alert(e.message);}
+}
+
+async function saveSquad(){
+if(!currentRound){showMessage('Пока нет открытого тура. Обратись к администратору.');return;}
+if(squad.length!==11){showMessage('Для сохранения нужно выбрать ровно 11 игроков');return;}
+try{
+const result=await request('/api/squad','POST',{player_ids:squad.map(p=>p.id)},true);
+showMessage(`Команда сохранена! Потрачено: ${result.total_cost.toLocaleString('ru-RU')}`);
+}catch(e){showMessage(e.message);}
+}
+
+function showMessage(text){
+const el=document.getElementById('roundInfo');
+el.textContent=text;
+}
+
+const countryFlags={
+'россия':'🇷🇺','russia':'🇷🇺',
+'швеция':'🇸🇪','sweden':'🇸🇪',
+'финляндия':'🇫🇮','finland':'🇫🇮',
+'казахстан':'🇰🇿','kazakhstan':'🇰🇿',
+'норвегия':'🇳🇴','norway':'🇳🇴',
+'германия':'🇩🇪','germany':'🇩🇪',
+'швейцария':'🇨🇭','switzerland':'🇨🇭',
+'чехия':'🇨🇿','czech republic':'🇨🇿',
+'сша':'🇺🇸','usa':'🇺🇸',
+'канада':'🇨🇦','canada':'🇨🇦',
+'латвия':'🇱🇻','latvia':'🇱🇻',
+'эстония':'🇪🇪','estonia':'🇪🇪',
+'дания':'🇩🇰','denmark':'🇩🇰',
+'нидерланды':'🇳🇱','netherlands':'🇳🇱',
+'украина':'🇺🇦','ukraine':'🇺🇦',
+'беларусь':'🇧🇾','belarus':'🇧🇾'
 };
 
-const positionNames = {
-    forward: 'Нападающий',
-    midfielder: 'Полузащитник',
-    defender: 'Защитник',
-    goalie: 'Вратарь'
-};
-
-async function request(url, method = 'GET', data = null, auth = false) {
-    const headers = {};
-
-    if (data !== null) {
-        headers['Content-Type'] = 'application/json';
-    }
-
-    if (auth) {
-        const initData = tg?.initData;
-        if (!initData) {
-            throw new Error('Открой приложение через Telegram');
-        }
-        headers['X-Telegram-Init-Data'] = initData;
-    }
-
-    const response = await fetch(url, {
-        method,
-        headers,
-        body: data !== null ? JSON.stringify(data) : null
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-        throw new Error(result.detail || 'Ошибка запроса');
-    }
-
-    return result;
+function getCountryFlag(country){
+return countryFlags[String(country||'').trim().toLowerCase()]||'';
 }
 
-function showSection(section) {
-    document.getElementById('teamSection').classList.toggle(
-        'active', section === 'team'
-    );
-    document.getElementById('ratingsSection').classList.toggle(
-        'active', section === 'ratings'
-    );
-
-    document.getElementById('teamTab').classList.toggle(
-        'active', section === 'team'
-    );
-    document.getElementById('ratingTab').classList.toggle(
-        'active', section === 'ratings'
-    );
-
-    if (section === 'ratings') {
-        loadRatings();
-    }
+function openPlayerCard(id){
+const player=players.find(p=>Number(p.id)===Number(id))||squad.find(p=>Number(p.id)===Number(id));
+if(!player)return;
+const country=player.nationality||'Не указано';
+const flag=getCountryFlag(country);
+const position=positionNames[player.position]||player.position||'Не указана';
+const photo=player.photo?`<img class="player-card-photo" src="${escapeHtml(player.photo)}" alt="Фото игрока" onerror="this.outerHTML='<div class=&quot;player-card-no-photo&quot;>🏑</div>'">`:`<div class="player-card-no-photo">🏑</div>`;
+document.getElementById('playerCardContent').innerHTML=`${photo}<h2>${escapeHtml(player.first_name)} ${escapeHtml(player.last_name)}</h2><div class="player-card-info"><span>Позиция</span><strong>${escapeHtml(position)}</strong></div><div class="player-card-info"><span>Гражданство</span><strong>${flag?flag+' ':''}${escapeHtml(country)}</strong></div><div class="player-card-info"><span>Цена игрока</span><strong>${Number(player.price).toLocaleString('ru-RU')}</strong></div>`;
+document.getElementById('playerModal').classList.add('open');
 }
 
-async function loadClubs() {
-    try {
-        const clubs = await request('/api/clubs');
-
-        document.getElementById('clubFilter').innerHTML =
-            '<option value="">Все клубы</option>' +
-            clubs.map(c =>
-                `<option value="${c.id}">${escapeHtml(c.name)}</option>`
-            ).join('');
-    } catch (e) {
-        console.error(e);
-    }
+function closePlayerCard(event){
+if(event&&event.target!==document.getElementById('playerModal'))return;
+document.getElementById('playerModal').classList.remove('open');
 }
 
-async function loadPlayers() {
-    const club = document.getElementById('clubFilter').value;
-    const query = new URLSearchParams();
-
-    if (selectedPosition) query.set('position', selectedPosition);
-    if (club) query.set('club_id', club);
-
-    try {
-        players = await request('/api/players?' + query.toString());
-        renderPlayers();
-    } catch (e) {
-        document.getElementById('players').textContent =
-            'Не удалось загрузить игроков';
-    }
+function changeRating(type){
+currentRating=type;
+document.getElementById('usersRatingTab').classList.toggle('active',type==='users');
+document.getElementById('playersRatingTab').classList.toggle('active',type==='players');
+loadRatings();
 }
 
-async function loadSquad() {
-    try {
-        const result = await request('/api/squad', 'GET', null, true);
-
-        currentRound = result.round;
-
-        if (!currentRound) {
-            document.getElementById('roundInfo').textContent =
-                result.message || 'Нет открытого тура';
-            squad = [];
-            renderSquad();
-            return;
-        }
-
-        document.getElementById('roundInfo').textContent =
-            'Текущий тур: ' + currentRound.name;
-
-        const allPlayers = await request('/api/players');
-
-        squad = result.player_ids
-            .map(id => allPlayers.find(p => p.id === id))
-            .filter(Boolean);
-
-        renderSquad();
-    } catch (e) {
-        document.getElementById('roundInfo').textContent =
-            'Не удалось загрузить состав: ' + e.message;
-
-        squad = [];
-        renderSquad();
-    }
+function changePeriod(period){
+currentPeriod=period;
+document.getElementById('allTimeTab').classList.toggle('active',period==='all');
+document.getElementById('roundTab').classList.toggle('active',period==='round');
+document.getElementById('ratingRound').style.display=period==='round'?'block':'none';
+loadRatings();
 }
 
-function showPosition(position) {
-    selectedPosition = position;
-
-    document.getElementById('positionTitle').textContent =
-        positionNames[position];
-
-    loadPlayers();
+async function loadRatingRounds(){
+try{
+const rounds=await request('/api/rounds');
+const select=document.getElementById('ratingRound');
+select.innerHTML='<option value="">Выбери тур</option>'+rounds.map(r=>`<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+}catch(e){console.error(e);}
 }
 
-function renderPlayers() {
-    const container = document.getElementById('players');
-
-    if (!players.length) {
-        container.textContent =
-            'Пока игроков нет. Добавь их через админ-панель.';
-        return;
-    }
-
-    container.innerHTML = players.map(p => {
-        const alreadySelected = squad.some(x => x.id === p.id);
-
-        return `
-        <div class="player">
-            <div class="player-name" onclick="openPlayerCard(${p.id})">
-                <strong>${escapeHtml(p.first_name)} ${escapeHtml(p.last_name)}</strong>
-                <small>${escapeHtml(p.club_name || 'Клуб не указан')} · ${Number(p.price).toLocaleString('ru-RU')}</small>
-            </div>
-            <button
-                onclick="addPlayer(${p.id})"
-                ${alreadySelected ? 'disabled' : ''}>
-                ${alreadySelected ? 'Выбран' : 'Добавить'}
-            </button>
-        </div>`;
-    }).join('');
+async function loadRatings(){
+const container=document.getElementById('ranking');
+container.innerHTML='<div class="empty">Загрузка рейтинга...</div>';
+try{
+let url=currentRating==='users'?'/api/ratings/users':'/api/ratings/players';
+if(currentPeriod==='round'){
+const roundId=document.getElementById('ratingRound').value;
+if(!roundId){container.innerHTML='<div class="empty">Выбери тур для просмотра рейтинга</div>';return;}
+url+='?round_id='+encodeURIComponent(roundId);
+}
+const data=await request(url);
+renderRatings(data);
+}catch(e){container.innerHTML='<div class="empty">Не удалось загрузить рейтинг: '+escapeHtml(e.message)+'</div>';}
 }
 
-function addPlayer(id) {
-    const p = players.find(x => x.id === id);
-    if (!p) return;
-
-    const count = squad.filter(x => x.position === p.position).length;
-
-    if (count >= limits[p.position]) {
-        showMessage('Для этой позиции уже набрано нужное количество игроков');
-        return;
-    }
-
-    if (squad.some(x => x.id === id)) {
-        showMessage('Этот игрок уже выбран');
-        return;
-    }
-
-    const cost = squad.reduce((s, x) => s + x.price, 0);
-
-    if (cost + p.price > budgetLimit) {
-        showMessage('Не хватает бюджета');
-        return;
-    }
-
-    squad.push(p);
-    renderSquad();
-    renderPlayers();
-    showMessage('Игрок добавлен');
+function renderRatings(data){
+const container=document.getElementById('ranking');
+if(!data.length){container.innerHTML='<div class="empty">Пока нет данных для рейтинга</div>';return;}
+container.innerHTML=data.map(item=>{
+const name=currentRating==='users'?(item.username?'@'+item.username:'Участник '+item.telegram_id):item.first_name+' '+item.last_name;
+const subtitle=currentRating==='users'?'Игроков в составах: '+item.players_count:positionNames[item.position]||item.position;
+const photo=currentRating==='players'&&item.photo?`<img class="rating-photo" src="${escapeHtml(item.photo)}" alt="">`:`<div class="rating-photo" style="display:flex;align-items:center;justify-content:center">🏑</div>`;
+let medal=item.place;
+if(item.place===1)medal='🥇';
+if(item.place===2)medal='🥈';
+if(item.place===3)medal='🥉';
+return `<div class="rating-row"><div class="place">${medal}</div>${photo}<div class="rating-info"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(subtitle)}</small></div><div class="rating-points">${item.points.toLocaleString('ru-RU')} оч.</div></div>`;
+}).join('');
 }
 
-function removePlayer(id) {
-    squad = squad.filter(p => p.id !== id);
-    renderSquad();
-    renderPlayers();
+function escapeHtml(value){
+return String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 }
 
-function renderSquad() {
-    const cost = squad.reduce((s, p) => s + p.price, 0);
-
-    document.getElementById('budget').textContent =
-        `Потрачено: ${cost.toLocaleString('ru-RU')} / 225 000`;
-
-    const container = document.getElementById('squad');
-
-    if (!squad.length) {
-        container.textContent = 'Пока состав не выбран';
-        return;
-    }
-
-    container.innerHTML = Object.keys(limits).map(position => {
-        const selected = squad.filter(p => p.position === position);
-
-        return `
-        <div style="margin-top:12px">
-            <strong>${positionNames[position]} (${selected.length}/${limits[position]})</strong>
-            ${selected.map(p => `
-                <div class="player">
-                    <span class="player-name" onclick="openPlayerCard(${p.id})">
-                        ${escapeHtml(p.first_name)} ${escapeHtml(p.last_name)}
-                    </span>
-                    <button onclick="removePlayer(${p.id})">Убрать</button>
-                </div>
-            `).join('')}
-        </div>`;
-    }).join('');
+async function init(){
+await loadClubs();
+await loadPlayers();
+await loadSquad();
+await loadRatingRounds();
 }
-
-async function saveSquad() {
-    if (!currentRound) {
-        showMessage('Пока нет открытого тура. Обратись к администратору.');
-        return;
-    }
-
-    if (squad.length !== 11) {
-        showMessage('Для сохранения нужно выбрать ровно 11 игроков');
-        return;
-    }
-
-    try {
-        const result = await request(
-            '/api/squad',
-            'POST',
-            {player_ids: squad.map(p => p.id)},
-            true
-        );
-
-        showMessage(
-            `Команда сохранена! Потрачено: ${result.total_cost.toLocaleString('ru-RU')}`
-        );
-    } catch (e) {
-        showMessage(e.message);
-    }
-}
-
-function showMessage(text) {
-    document.getElementById('message').textContent = text;
-}
-
-// КАРТОЧКИ ИГРОКОВ
-
-const countryFlags = {
-    'россия': '🇷🇺',
-    'russia': '🇷🇺',
-    'швеция': '🇸🇪',
-    'sweden': '🇸🇪',
-    'финляндия': '🇫🇮',
-    'finland': '🇫🇮',
-    'казахстан': '🇰🇿',
-    'kazakhstan': '🇰🇿',
-    'норвегия': '🇳🇴',
-    'norway': '🇳🇴',
-    'германия': '🇩🇪',
-    'germany': '🇩🇪',
-    'швейцария': '🇨🇭',
-    'switzerland': '🇨🇭',
-    'чехия': '🇨🇿',
-    'czech republic': '🇨🇿',
-    'сша': '🇺🇸',
-    'usa': '🇺🇸',
-    'канада': '🇨🇦',
-    'canada': '🇨🇦',
-    'латвия': '🇱🇻',
-    'latvia': '🇱🇻',
-    'эстония': '🇪🇪',
-    'estonia': '🇪🇪',
-    'дания': '🇩🇰',
-    'denmark': '🇩🇰',
-    'нидерланды': '🇳🇱',
-    'netherlands': '🇳🇱',
-    'украина': '🇺🇦',
-    'ukraine': '🇺🇦',
-    'беларусь': '🇧🇾',
-    'belarus': '🇧🇾'
-};
-
-function getCountryFlag(country) {
-    const normalized = String(country || '').trim().toLowerCase();
-    return countryFlags[normalized] || '';
-}
-
-function openPlayerCard(id) {
-    const player =
-        players.find(p => Number(p.id) === Number(id)) ||
-        squad.find(p => Number(p.id) === Number(id));
-
-    if (!player) return;
-
-    const country = player.nationality || 'Не указано';
-    const flag = getCountryFlag(country);
-    const position = positionNames[player.position] || player.position || 'Не указана';
-
-    const photo = player.photo
-        ? `<img class="player-card-photo" src="${escapeHtml(player.photo)}" alt="Фото игрока" onerror="this.outerHTML='<div class=&quot;player-card-no-photo&quot;>🏑</div>'">`
-        : `<div class="player-card-no-photo">🏑</div>`;
-
-    document.getElementById('playerCardContent').innerHTML = `
-        ${photo}
-        <h2>${escapeHtml(player.first_name)} ${escapeHtml(player.last_name)}</h2>
-
-        <div class="player-card-info">
-            <span>Позиция</span>
-            <strong>${escapeHtml(position)}</strong>
-        </div>
-
-        <div class="player-card-info">
-            <span>Гражданство</span>
-            <strong>${flag ? flag + ' ' : ''}${escapeHtml(country)}</strong>
-        </div>
-
-        <div class="player-card-info">
-            <span>Цена игрока</span>
-            <strong>${Number(player.price).toLocaleString('ru-RU')}</strong>
-        </div>
-    `;
-
-    document.getElementById('playerModal').classList.add('open');
-}
-
-function closePlayerCard(event) {
-    if (event && event.target !== document.getElementById('playerModal')) {
-        return;
-    }
-
-    document.getElementById('playerModal').classList.remove('open');
-}
-
-// РЕЙТИНГИ
-
-function changeRating(type) {
-    currentRating = type;
-
-    document.getElementById('usersRatingTab').classList.toggle(
-        'active', type === 'users'
-    );
-
-    document.getElementById('playersRatingTab').classList.toggle(
-        'active', type === 'players'
-    );
-
-    loadRatings();
-}
-
-function changePeriod(period) {
-    currentPeriod = period;
-
-    document.getElementById('allTimeTab').classList.toggle(
-        'active', period === 'all'
-    );
-
-    document.getElementById('roundTab').classList.toggle(
-        'active', period === 'round'
-    );
-
-    document.getElementById('ratingRound').style.display =
-        period === 'round' ? 'block' : 'none';
-
-    loadRatings();
-}
-
-async function loadRatingRounds() {
-    try {
-        const rounds = await request('/api/rounds');
-
-        const select = document.getElementById('ratingRound');
-
-        select.innerHTML =
-            '<option value="">Выбери тур</option>' +
-            rounds.map(r =>
-                `<option value="${r.id}">${escapeHtml(r.name)}</option>`
-            ).join('');
-
-    } catch (e) {
-        console.error(e);
-    }
-}
-
-async function loadRatings() {
-    const container = document.getElementById('ranking');
-
-    container.innerHTML = '<div class="empty">Загрузка рейтинга...</div>';
-
-    try {
-        let url = currentRating === 'users'
-            ? '/api/ratings/users'
-            : '/api/ratings/players';
-
-        if (currentPeriod === 'round') {
-            const roundId = document.getElementById('ratingRound').value;
-
-            if (!roundId) {
-                container.innerHTML =
-                    '<div class="empty">Выбери тур для просмотра рейтинга</div>';
-                return;
-            }
-
-            url += '?round_id=' + encodeURIComponent(roundId);
-        }
-
-        const data = await request(url);
-
-        renderRatings(data);
-
-    } catch (e) {
-        container.innerHTML =
-            '<div class="empty">Не удалось загрузить рейтинг: ' +
-            escapeHtml(e.message) + '</div>';
-    }
-}
-
-function renderRatings(data) {
-    const container = document.getElementById('ranking');
-
-    if (!data.length) {
-        container.innerHTML =
-            '<div class="empty">Пока нет данных для рейтинга</div>';
-        return;
-    }
-
-    container.innerHTML = data.map(item => {
-        const name = currentRating === 'users'
-            ? (item.username ? '@' + item.username : 'Участник ' + item.telegram_id)
-            : item.first_name + ' ' + item.last_name;
-
-        const subtitle = currentRating === 'users'
-            ? 'Игроков в составах: ' + item.players_count
-            : positionNames[item.position] || item.position;
-
-        const photo = currentRating === 'players' && item.photo
-            ? `<img class="rating-photo" src="${escapeHtml(item.photo)}" alt="">`
-            : `<div class="rating-photo" style="display:flex;align-items:center;justify-content:center">🏑</div>`;
-
-        let medal = item.place;
-
-        if (item.place === 1) medal = '🥇';
-        if (item.place === 2) medal = '🥈';
-        if (item.place === 3) medal = '🥉';
-
-        return `
-        <div class="rating-row">
-            <div class="place">${medal}</div>
-            ${photo}
-            <div class="rating-info">
-                <strong>${escapeHtml(name)}</strong>
-                <small>${escapeHtml(subtitle)}</small>
-            </div>
-            <div class="rating-points">
-                ${item.points.toLocaleString('ru-RU')} оч.
-            </div>
-        </div>`;
-    }).join('');
-}
-
-function escapeHtml(value) {
-    return String(value ?? '').replace(/[&<>"']/g, char => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    })[char]);
-}
-
-async function init() {
-    await loadClubs();
-    await loadPlayers();
-    await loadSquad();
-    await loadRatingRounds();
-}
-
 init();
 </script>
 </body>
