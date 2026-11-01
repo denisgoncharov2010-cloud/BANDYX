@@ -495,6 +495,30 @@ async def open_round(round_id: int, _: None = Depends(verify_admin)):
         if not found.data:
             raise HTTPException(404, "Тур не найден")
 
+        supabase.table("rounds").update({"is_open": 0}).neq(
+            "id", round_id
+        ).execute()
+
+        supabase.table("rounds").update({"is_open": 1}).eq(
+            "id", round_id
+        ).execute()
+
+        return {"ok": True, "message": "Тур открыт"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("OPEN ROUND ERROR:", repr(e), flush=True)
+        raise HTTPException(500, "Не удалось открыть тур")
+async def open_round(round_id: int, _: None = Depends(verify_admin)):
+    try:
+        found = supabase.table("rounds").select("id").eq(
+            "id", round_id
+        ).execute()
+
+        if not found.data:
+            raise HTTPException(404, "Тур не найден")
+
         supabase.table("rounds").update({"is_open": False}).neq(
             "id", round_id
         ).execute()
