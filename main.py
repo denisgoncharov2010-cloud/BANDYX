@@ -30,16 +30,21 @@ async def start(message: Message):
             "После этого кнопка открытия фэнтези-поля появится здесь."
         )
         return
-        keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="Открыть BANDYX", web_app=WebAppInfo(url=WEBAPP_URL))]]
-    
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[[
+            InlineKeyboardButton(
+                text="Открыть BANDYX",
+                web_app=WebAppInfo(url=WEBAPP_URL)
+            )
+        ]]
     )
+
     await message.answer(
         "🏑 Добро пожаловать в BANDYX!\n"
         "Собери состав из 11 игроков в бюджете 225 000 и соревнуйся в рейтингах.",
         reply_markup=keyboard
     )
-
 @dp.message(Command("help"))
 async def help_cmd(message: Message):
     await message.answer(
