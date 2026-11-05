@@ -32,7 +32,7 @@ async def start(message: Message):
         return
         keyboard = InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text="Открыть BANDYX", web_app=WebAppInfo(url=WEBAPP_URL))]]
-    )
+    
     )
     await message.answer(
         "🏑 Добро пожаловать в BANDYX!\n"
