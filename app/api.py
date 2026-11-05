@@ -753,7 +753,7 @@ async def player_ratings(round_id: int | None = None):
 
         ratings = []
 
-                for player_id, player in players.items():
+        for player_id, player in players.items():
             if not player.get("active", 1):
                 continue
 
