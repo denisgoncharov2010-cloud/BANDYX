@@ -276,6 +276,9 @@ async def delete_player(player_id: int, _: None = Depends(verify_admin)):
         if not result.data:
             raise HTTPException(404, "Игрок не найден")
 
+                supabase.table("player_stats").delete().eq(
+            "player_id", player_id
+        ).execute()
         return {"ok": True}
     except HTTPException:
         raise
