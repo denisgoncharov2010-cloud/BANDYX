@@ -6,7 +6,7 @@ from pathlib import Path
 import uvicorn
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, WebAppInfo, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import Message, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -30,9 +30,9 @@ async def start(message: Message):
             "После этого кнопка открытия фэнтези-поля появится здесь."
         )
         return
-    keyboard = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="Открыть BANDYX", web_app=WebAppInfo(url=WEBAPP_URL))]],
-        resize_keyboard=True
+        keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="Открыть BANDYX", web_app=WebAppInfo(url=WEBAPP_URL))]]
+    )
     )
     await message.answer(
         "🏑 Добро пожаловать в BANDYX!\n"
