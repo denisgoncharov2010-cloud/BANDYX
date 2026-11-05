@@ -266,10 +266,6 @@ async def add_player(data: PlayerData, _: None = Depends(verify_admin)):
         return {"ok": True, "id": result.data[0]["id"]}
     except Exception:
         raise HTTPException(500, "Не удалось добавить игрока")
-
-
-# ЗАГРУЗКА ФОТО И ЭМБЛЕМ
-
 @router.delete("/api/players/{player_id}")
 async def delete_player(player_id: int, _: None = Depends(verify_admin)):
     try:
@@ -311,6 +307,9 @@ async def delete_club(club_id: int, _: None = Depends(verify_admin)):
         raise
     except Exception:
         raise HTTPException(500, "Не удалось удалить клуб")
+
+# ЗАГРУЗКА ФОТО И ЭМБЛЕМ
+
 @router.post("/api/upload")
 async def upload_photo(
     file: UploadFile = File(...),
