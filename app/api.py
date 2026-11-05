@@ -270,6 +270,47 @@ async def add_player(data: PlayerData, _: None = Depends(verify_admin)):
 
 # ЗАГРУЗКА ФОТО И ЭМБЛЕМ
 
+@router.delete("/api/players/{player_id}")
+async def delete_player(player_id: int, _: None = Depends(verify_admin)):
+    try:
+        result = supabase.table("players").update(
+            {"active": 0}
+        ).eq("id", player_id).execute()
+
+        if not result.data:
+            raise HTTPException(404, "Игрок не найден")
+
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(500, "Не удалось удалить игрока")
+
+
+@router.delete("/api/clubs/{club_id}")
+async def delete_club(club_id: int, _: None = Depends(verify_admin)):
+    try:
+        matches = supabase.table("matches").select("id").or_(
+            f"home_club_id.eq.{club_id},away_club_id.eq.{club_id}"
+        ).limit(1).execute()
+
+        if matches.data:
+            raise HTTPException(400, "У клуба есть матчи, сначала удали их")
+
+        supabase.table("players").update(
+            {"club_id": None}
+        ).eq("club_id", club_id).execute()
+
+        result = supabase.table("clubs").delete().eq("id", club_id).execute()
+
+        if not result.data:
+            raise HTTPException(404, "Клуб не найден")
+
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(500, "Не удалось удалить клуб")
 @router.post("/api/upload")
 async def upload_photo(
     file: UploadFile = File(...),
