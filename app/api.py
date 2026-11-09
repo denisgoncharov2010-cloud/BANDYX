@@ -838,6 +838,7 @@ async def user_ratings(round_id: int | None = None):
     except Exception:
         raise HTTPException(500, "Не удалось загрузить рейтинг пользователей")
         @router.get("/api/squad/history")
+        
 async def squad_history(round_id: int, telegram_id: int = Depends(get_user)):
     try:
         round_res = supabase.table("rounds").select(
