@@ -837,4 +837,53 @@ async def user_ratings(round_id: int | None = None):
         return result
     except Exception:
         raise HTTPException(500, "Не удалось загрузить рейтинг пользователей")
+        @router.get("/api/squad/history")
+async def squad_history(round_id: int, telegram_id: int = Depends(get_user)):
+    try:
+        round_res = supabase.table("rounds").select(
+            "id,name,is_open"
+        ).eq("id", round_id).execute()
+
+        if not round_res.data:
+            raise HTTPException(404, "Тур не найден")
+
+        round_row = round_res.data[0]
+
+        selections = supabase.table("selections").select(
+            "player_id"
+        ).eq("telegram_id", telegram_id).eq(
+            "round_id", round_id
+        ).execute().data
+
+        ids = [s["player_id"] for s in selections]
+
+        if not ids:
+            return {"round": round_row, "players": [], "total_points": 0}
+
+        players = supabase.table("players").select(
+            "*"
+        ).in_("id", ids).execute().data
+
+        clubs = {
+            c["id"]: c["name"]
+            for c in supabase.table("clubs").select("id,name").execute().data
+        }
+
+        stats = supabase.table("player_stats").select("*").eq(
+            "round_id", round_id
+        ).in_("player_id", ids).execute().data
+        stats_by_player = {s["player_id"]: s for s in stats}
+
+        total = 0
+        for player in players:
+            stat = stats_by_player.get(player["id"])
+            player["points"] = calculate_points(player, stat) if stat else 0
+            player["club_name"] = clubs.get(player.get("club_id"))
+            total += player["points"]
+
+        return {"round": round_row, "players": players, "total_points": total}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(500, "Не удалось загрузить состав тура")
         # Конец файла api.py
