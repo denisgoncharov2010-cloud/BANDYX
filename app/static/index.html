@@ -51,7 +51,7 @@ input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white
 .player-card-info strong{font-size:16px}
 
 /* Тактическое поле BANDYX */
-.lineup-board{position:relative;overflow:hidden;min-height:760px;border:1px solid #a84b63;border-radius:18px;background:radial-gradient(ellipse at center,#6f142c 0%,#430817 70%,#26040d 100%);padding:18px 10px;margin-top:14px}
+.lineup-board{position:relative;overflow:hidden;min-height:760px;border:1px solid #a84b63;border-radius:18px;background:#430817 url('https://studvmwrzdmcdqfjfehi.supabase.co/storage/v1/object/public/bandyx-images/IMG_20261110_172720_829.jpg') center/cover no-repeat;padding:18px 10px;margin-top:14px}
 .lineup-board:before{content:"";position:absolute;inset:12px;border:2px solid rgba(255,235,240,.72);border-radius:5px;pointer-events:none}
 .lineup-board:after{content:"";position:absolute;left:12px;right:12px;top:50%;border-top:2px solid rgba(255,235,240,.65);pointer-events:none}
 .center-circle{position:absolute;width:118px;height:118px;border:2px solid rgba(255,235,240,.55);border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none}
@@ -80,6 +80,7 @@ input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white
 .slot-label{font-size:10px}
 .slot-row.midfield{margin-top:75px}
 }
+.lineup-board:before,.lineup-board:after,.center-circle{display:none}
 </style>
 </head>
 <body>
@@ -457,4 +458,4 @@ await loadRatingRounds();
 init();
 </script>
 </body>
-</html>
+  </html>
