@@ -95,6 +95,7 @@ input,select{width:100%;padding:12px;margin:6px 0;background:#170f15;color:white
 <div id="teamSection" class="section active">
 <div class="card">
 <h2>Моя команда</h2>
+<select id="teamRound" onchange="changeTeamRound()"></select>
 <div id="budget">Бюджет: 225 000</div>
 <p class="muted">3 нападающих · 4 полузащитника · 3 защитника · 1 вратарь</p>
 <div id="roundInfo" class="muted">Проверяем открытый тур...</div>
@@ -162,6 +163,7 @@ let activeSlotPosition='';
 let activeSlotIndex=0;
 let currentRating='users';
 let currentPeriod='all';
+let viewReadonly=false;
 
 const budgetLimit=225000;
 const limits={forward:3,midfielder:4,defender:3,goalie:1};
@@ -246,6 +248,7 @@ return `<button class="lineup-slot ${position==='midfielder'?'mid':''}" onclick=
 }
 
 function openSelection(position,index){
+if(viewReadonly)return;
 activeSlotPosition=position;
 activeSlotIndex=index;
 document.getElementById('selectionTitle').textContent='Выбор: '+positionNames[position];
@@ -302,6 +305,50 @@ showMessage(`Команда сохранена! Потрачено: ${result.tot
 function showMessage(text){
 const el=document.getElementById('roundInfo');
 el.textContent=text;
+}
+
+/* Выбор тура и история составов */
+async function loadTeamRounds(){
+try{
+const rounds=await request('/api/rounds');
+const sel=document.getElementById('teamRound');
+sel.innerHTML=rounds.map(r=>`<option value="${r.id}">${escapeHtml(r.name)}${Number(r.is_open)===1?' (открыт)':''}</option>`).join('');
+if(currentRound){
+sel.value=currentRound.id;
+}else if(rounds.length){
+sel.value=rounds[0].id;
+await changeTeamRound();
+}
+}catch(e){console.error(e);}
+}
+
+async function changeTeamRound(){
+const id=Number(document.getElementById('teamRound').value);
+if(!id)return;
+if(currentRound&&id===Number(currentRound.id)){
+viewReadonly=false;
+document.getElementById('saveButton').style.display='';
+await loadSquad();
+return;
+}
+viewReadonly=true;
+document.getElementById('saveButton').style.display='none';
+await loadHistory(id);
+}
+
+async function loadHistory(id){
+try{
+const r=await request('/api/squad/history?round_id='+id,'GET',null,true);
+squad=r.players;
+renderSquad();
+document.getElementById('roundInfo').textContent=r.players.length
+?`${r.round.name}: набрано ${Number(r.total_points).toLocaleString('ru-RU')} оч.`
+:`${r.round.name}: состав на этот тур не собран`;
+}catch(e){
+squad=[];
+renderSquad();
+document.getElementById('roundInfo').textContent='Не удалось загрузить тур: '+e.message;
+}
 }
 
 const countryFlags={
@@ -404,6 +451,7 @@ async function init(){
 await loadClubs();
 await loadPlayers();
 await loadSquad();
+await loadTeamRounds();
 await loadRatingRounds();
 }
 init();
